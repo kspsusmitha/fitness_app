@@ -1,0 +1,30 @@
+{
+  "project_info": {
+    "project_number": "921267920092",
+    "firebase_url": "https://turfapp-3ac33-default-rtdb.firebaseio.com",
+    "project_id": "turfapp-3ac33",
+    "storage_bucket": "turfapp-3ac33.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:921267920092:android:129f433c8a2ca29d262819",
+        "android_client_info": {
+          "package_name": "com.example.fitness_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBerVo52j9frXrJsJGRhjUvvvEoI7XPQZU"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
