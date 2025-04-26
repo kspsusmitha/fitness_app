@@ -1,176 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:fitness_app/screens/workouts/pre_designed_workouts.dart';
-import 'package:fitness_app/screens/workouts/custom_workouts.dart';
-import 'package:fitness_app/screens/workouts/exercise_library.dart';
-import 'package:fitness_app/screens/workouts/workout_tracker.dart';
 import 'package:youtube_player_flutter/youtube_player_flutter.dart';
 
-class WorkoutTab extends StatefulWidget {
-  const WorkoutTab({super.key});
-
-  @override
-  State<WorkoutTab> createState() => _WorkoutTabState();
-}
-
-class _WorkoutTabState extends State<WorkoutTab> with SingleTickerProviderStateMixin {
-  late TabController _tabController;
-
-  @override
-  void initState() {
-    super.initState();
-    _tabController = TabController(length: 4, vsync: this);
-  }
-
-  @override
-  void dispose() {
-    _tabController.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [
-            Colors.blue.shade300,
-            Colors.blue.shade700,
-          ],
-        ),
-      ),
-      child: SafeArea(
-        child: Scaffold(
-          backgroundColor: Colors.transparent,
-          appBar: AppBar(
-            elevation: 0,
-            backgroundColor: Colors.transparent,
-            title: const Text(
-              'Workouts',
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-                fontSize: 24,
-                color: Colors.white,
-              ),
-            ),
-            bottom: TabBar(
-              controller: _tabController,
-              isScrollable: true,
-              indicatorColor: Colors.white,
-              indicatorWeight: 3,
-              labelColor: Colors.white,
-              unselectedLabelColor: Colors.white.withOpacity(0.7),
-              labelStyle: const TextStyle(
-                fontWeight: FontWeight.bold,
-                fontSize: 16,
-              ),
-              tabs: const [
-                Tab(text: 'Pre-designed'),
-                Tab(text: 'Custom'),
-                Tab(text: 'Library'),
-                Tab(text: 'Tracker'),
-              ],
-            ),
-          ),
-          body: Container(
-            margin: const EdgeInsets.only(top: 8),
-            decoration: const BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.only(
-                topLeft: Radius.circular(30),
-                topRight: Radius.circular(30),
-              ),
-            ),
-            child: TabBarView(
-              controller: _tabController,
-              children: const [
-                PreDesignedWorkouts(),
-                CustomWorkouts(),
-                ExerciseLibrary(),
-                WorkoutTracker(),
-              ],
-            ),
-          ),
-          floatingActionButton: _tabController.index == 1
-              ? FloatingActionButton(
-                  onPressed: () {
-                    // Add new custom workout
-                  },
-                  backgroundColor: Colors.blue.shade600,
-                  child: const Icon(Icons.add),
-                )
-              : null,
-        ),
-      ),
-    );
-  }
-}
-
-// Add Exercise class with video support
-class Exercise {
-  final String name;
-  final String youtubeUrl;
-  final String description;
-  final String duration;
-
-  Exercise({
-    required this.name,
-    required this.youtubeUrl,
-    required this.description,
-    required this.duration,
-  });
-}
-
-// Add ExerciseVideoPlayer widget
-class ExerciseVideoPlayer extends StatefulWidget {
-  final String youtubeUrl;
-
-  const ExerciseVideoPlayer({
-    super.key,
-    required this.youtubeUrl,
-  });
-
-  @override
-  State<ExerciseVideoPlayer> createState() => _ExerciseVideoPlayerState();
-}
-
-class _ExerciseVideoPlayerState extends State<ExerciseVideoPlayer> {
-  late YoutubePlayerController _controller;
-
-  @override
-  void initState() {
-    super.initState();
-    final videoId = YoutubePlayer.convertUrlToId(widget.youtubeUrl);
-    _controller = YoutubePlayerController(
-      initialVideoId: videoId!,
-      flags: const YoutubePlayerFlags(
-        autoPlay: false,
-        mute: false,
-      ),
-    );
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return YoutubePlayer(
-      controller: _controller,
-      showVideoProgressIndicator: true,
-      progressColors: const ProgressBarColors(
-        playedColor: Colors.blue,
-        bufferedColor: Colors.grey,
-      ),
-    );
-  }
-}
-
-// Update PreDesignedWorkouts class
 class PreDesignedWorkouts extends StatelessWidget {
   const PreDesignedWorkouts({super.key});
 
@@ -296,10 +126,35 @@ class PreDesignedWorkouts extends StatelessWidget {
   }) {
     return Card(
       margin: const EdgeInsets.only(bottom: 16),
+      elevation: 2,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+      ),
       child: ExpansionTile(
-        leading: Icon(icon, color: Colors.blue),
-        title: Text(title),
-        subtitle: Text('$description\nDuration: $duration'),
+        leading: Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: Colors.blue.shade50,
+            shape: BoxShape.circle,
+          ),
+          child: Icon(icon, color: Colors.blue.shade700),
+        ),
+        title: Text(
+          title,
+          style: const TextStyle(
+            fontWeight: FontWeight.bold,
+            fontSize: 18,
+          ),
+        ),
+        subtitle: Text(
+          '$description\nDuration: $duration',
+          style: TextStyle(
+            color: Colors.grey.shade700,
+            fontSize: 14,
+          ),
+        ),
+        childrenPadding: const EdgeInsets.symmetric(vertical: 8),
+        expandedCrossAxisAlignment: CrossAxisAlignment.start,
         children: [
           ...exercises.map((exercise) => _buildExerciseCard(exercise)),
           Padding(
@@ -308,7 +163,21 @@ class PreDesignedWorkouts extends StatelessWidget {
               onPressed: () {
                 // Start program
               },
-              child: const Text('Start Program'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.blue.shade600,
+                foregroundColor: Colors.white,
+                minimumSize: const Size(double.infinity, 50),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              child: const Text(
+                'START PROGRAM',
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 16,
+                ),
+              ),
             ),
           ),
         ],
@@ -319,6 +188,10 @@ class PreDesignedWorkouts extends StatelessWidget {
   Widget _buildExerciseCard(Exercise exercise) {
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      elevation: 1,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -339,8 +212,8 @@ class PreDesignedWorkouts extends StatelessWidget {
                 const SizedBox(height: 8),
                 Text(
                   'Duration: ${exercise.duration}',
-                  style: const TextStyle(
-                    color: Colors.blue,
+                  style: TextStyle(
+                    color: Colors.blue.shade700,
                     fontWeight: FontWeight.w500,
                   ),
                 ),
@@ -356,3 +229,66 @@ class PreDesignedWorkouts extends StatelessWidget {
     );
   }
 }
+
+// Exercise class
+class Exercise {
+  final String name;
+  final String youtubeUrl;
+  final String description;
+  final String duration;
+
+  Exercise({
+    required this.name,
+    required this.youtubeUrl,
+    required this.description,
+    required this.duration,
+  });
+}
+
+// ExerciseVideoPlayer widget
+class ExerciseVideoPlayer extends StatefulWidget {
+  final String youtubeUrl;
+
+  const ExerciseVideoPlayer({
+    super.key,
+    required this.youtubeUrl,
+  });
+
+  @override
+  State<ExerciseVideoPlayer> createState() => _ExerciseVideoPlayerState();
+}
+
+class _ExerciseVideoPlayerState extends State<ExerciseVideoPlayer> {
+  late YoutubePlayerController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    final videoId = YoutubePlayer.convertUrlToId(widget.youtubeUrl);
+    _controller = YoutubePlayerController(
+      initialVideoId: videoId!,
+      flags: const YoutubePlayerFlags(
+        autoPlay: false,
+        mute: false,
+      ),
+    );
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return YoutubePlayer(
+      controller: _controller,
+      showVideoProgressIndicator: true,
+      progressColors: const ProgressBarColors(
+        playedColor: Colors.blue,
+        bufferedColor: Colors.grey,
+      ),
+    );
+  }
+} 

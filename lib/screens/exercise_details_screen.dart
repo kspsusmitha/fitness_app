@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:video_player/video_player.dart';
+import 'package:chewie/chewie.dart';
 
-class ExerciseDetailsScreen extends StatelessWidget {
+class ExerciseDetailsScreen extends StatefulWidget {
   final String exerciseName;
   final String category;
 
@@ -11,133 +13,288 @@ class ExerciseDetailsScreen extends StatelessWidget {
   });
 
   @override
+  State<ExerciseDetailsScreen> createState() => _ExerciseDetailsScreenState();
+}
+
+class _ExerciseDetailsScreenState extends State<ExerciseDetailsScreen> {
+  late VideoPlayerController _videoPlayerController;
+  ChewieController? _chewieController;
+  bool _isVideoInitialized = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _initializeVideo();
+  }
+
+  Future<void> _initializeVideo() async {
+    // This would be replaced with actual video URL in production
+    _videoPlayerController = VideoPlayerController.network(
+      'https://flutter.github.io/assets-for-api-docs/assets/videos/butterfly.mp4',
+    );
+
+    await _videoPlayerController.initialize();
+    
+    _chewieController = ChewieController(
+      videoPlayerController: _videoPlayerController,
+      autoPlay: false,
+      looping: true,
+      aspectRatio: 16 / 9,
+      placeholder: Container(
+        color: Colors.grey[200],
+        child: const Center(
+          child: CircularProgressIndicator(),
+        ),
+      ),
+      materialProgressColors: ChewieProgressColors(
+        playedColor: Colors.blue,
+        handleColor: Colors.blue,
+        backgroundColor: Colors.grey.shade300,
+        bufferedColor: Colors.blue.shade100,
+      ),
+    );
+    
+    setState(() {
+      _isVideoInitialized = true;
+    });
+  }
+
+  @override
+  void dispose() {
+    _videoPlayerController.dispose();
+    _chewieController?.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Text(exerciseName),
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Exercise Image/Video Placeholder
-            Container(
-              height: 200,
-              width: double.infinity,
-              decoration: BoxDecoration(
-                color: Colors.grey[200],
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Icon(
-                Icons.fitness_center,
-                size: 64,
-                color: Colors.grey[400],
-              ),
-            ),
-            const SizedBox(height: 24),
-
-            // Instructions Section
-            const Text(
-              'Instructions',
-              style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 12),
-            _buildInstructionStep(1, 'Start with proper form and positioning'),
-            _buildInstructionStep(2, 'Maintain controlled movement throughout'),
-            _buildInstructionStep(3, 'Focus on muscle engagement'),
-            _buildInstructionStep(4, 'Complete recommended sets and reps'),
-
-            const SizedBox(height: 24),
-
-            // Target Muscles
-            const Text(
-              'Target Muscles',
-              style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 12),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: _getTargetMuscles(),
-            ),
-
-            const SizedBox(height: 24),
-
-            // Sets and Reps
-            const Text(
-              'Recommended Sets & Reps',
-              style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 12),
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              Colors.blue.shade300,
+              Colors.blue.shade700,
+            ],
+          ),
+        ),
+        child: SafeArea(
+          child: Column(
+            children: [
+              // Custom App Bar
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+                child: Row(
                   children: [
-                    _buildSetRow('Beginner', '3 sets of 10 reps'),
-                    const Divider(),
-                    _buildSetRow('Intermediate', '4 sets of 12 reps'),
-                    const Divider(),
-                    _buildSetRow('Advanced', '5 sets of 15 reps'),
+                    IconButton(
+                      icon: const Icon(Icons.arrow_back, color: Colors.white),
+                      onPressed: () => Navigator.pop(context),
+                    ),
+                    Expanded(
+                      child: Text(
+                        widget.exerciseName,
+                        style: const TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.favorite_border, color: Colors.white),
+                      onPressed: () {
+                        // Add to favorites
+                      },
+                    ),
                   ],
                 ),
               ),
-            ),
-
-            const SizedBox(height: 24),
-
-            // Tips Section
-            const Text(
-              'Pro Tips',
-              style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
+              
+              // Content
+              Expanded(
+                child: Container(
+                  decoration: const BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.only(
+                      topLeft: Radius.circular(30),
+                      topRight: Radius.circular(30),
+                    ),
+                  ),
+                  child: SingleChildScrollView(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Exercise Video
+                        Container(
+                          height: 220,
+                          width: double.infinity,
+                          margin: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(20),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.2),
+                                blurRadius: 10,
+                                offset: const Offset(0, 5),
+                              ),
+                            ],
+                          ),
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(20),
+                            child: _isVideoInitialized
+                                ? Chewie(controller: _chewieController!)
+                                : Container(
+                                    color: Colors.grey[200],
+                                    child: const Center(
+                                      child: CircularProgressIndicator(),
+                                    ),
+                                  ),
+                          ),
+                        ),
+                        
+                        // Category Chip
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                          child: Chip(
+                            label: Text(
+                              widget.category,
+                              style: TextStyle(
+                                color: Colors.blue.shade700,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            backgroundColor: Colors.blue.shade50,
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          ),
+                        ),
+                        
+                        // Instructions Section
+                        _buildSection(
+                          'Instructions',
+                          Column(
+                            children: [
+                              _buildInstructionStep(1, 'Start with proper form and positioning'),
+                              _buildInstructionStep(2, 'Maintain controlled movement throughout'),
+                              _buildInstructionStep(3, 'Focus on muscle engagement'),
+                              _buildInstructionStep(4, 'Complete recommended sets and reps'),
+                            ],
+                          ),
+                        ),
+                        
+                        // Target Muscles
+                        _buildSection(
+                          'Target Muscles',
+                          Wrap(
+                            spacing: 8,
+                            runSpacing: 8,
+                            children: _getTargetMuscles(),
+                          ),
+                        ),
+                        
+                        // Sets and Reps
+                        _buildSection(
+                          'Recommended Sets & Reps',
+                          Card(
+                            elevation: 0,
+                            color: Colors.grey.shade50,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16),
+                              side: BorderSide(color: Colors.grey.shade200),
+                            ),
+                            child: Padding(
+                              padding: const EdgeInsets.all(16),
+                              child: Column(
+                                children: [
+                                  _buildSetRow('Beginner', '3 sets of 10 reps'),
+                                  const Divider(),
+                                  _buildSetRow('Intermediate', '4 sets of 12 reps'),
+                                  const Divider(),
+                                  _buildSetRow('Advanced', '5 sets of 15 reps'),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                        
+                        // Tips Section
+                        _buildSection(
+                          'Pro Tips',
+                          Column(
+                            children: [
+                              _buildTipCard(
+                                'Breathing',
+                                'Exhale during exertion, inhale during the easier phase',
+                                Icons.air,
+                              ),
+                              _buildTipCard(
+                                'Form',
+                                'Keep your core engaged throughout the movement',
+                                Icons.sports_gymnastics,
+                              ),
+                              _buildTipCard(
+                                'Rest',
+                                'Take 60-90 seconds rest between sets',
+                                Icons.timer,
+                              ),
+                            ],
+                          ),
+                        ),
+                        
+                        const SizedBox(height: 30),
+                      ],
+                    ),
+                  ),
+                ),
               ),
-            ),
-            const SizedBox(height: 12),
-            _buildTipCard(
-              'Breathing',
-              'Exhale during exertion, inhale during the easier phase',
-              Icons.air,
-            ),
-            _buildTipCard(
-              'Form',
-              'Keep your core engaged throughout the movement',
-              Icons.sports_gymnastics,
-            ),
-            _buildTipCard(
-              'Rest',
-              'Take 60-90 seconds rest between sets',
-              Icons.timer,
-            ),
-          ],
+            ],
+          ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildSection(String title, Widget content) {
+    return Padding(
+      padding: const EdgeInsets.all(16.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            style: const TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 16),
+          content,
+        ],
       ),
     );
   }
 
   Widget _buildInstructionStep(int step, String instruction) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.only(bottom: 16),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
-            width: 24,
-            height: 24,
+            width: 32,
+            height: 32,
             decoration: BoxDecoration(
-              color: Colors.blue,
-              borderRadius: BorderRadius.circular(12),
+              color: Colors.blue.shade600,
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.blue.shade200,
+                  blurRadius: 5,
+                  offset: const Offset(0, 3),
+                ),
+              ],
             ),
             child: Center(
               child: Text(
@@ -149,11 +306,11 @@ class ExerciseDetailsScreen extends StatelessWidget {
               ),
             ),
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: 16),
           Expanded(
             child: Text(
               instruction,
-              style: const TextStyle(fontSize: 16),
+              style: const TextStyle(fontSize: 16, height: 1.5),
             ),
           ),
         ],
@@ -166,14 +323,16 @@ class ExerciseDetailsScreen extends StatelessWidget {
     return muscles.map((muscle) {
       return Chip(
         label: Text(muscle),
-        backgroundColor: Colors.blue.withOpacity(0.1),
+        backgroundColor: Colors.blue.shade50,
+        labelStyle: TextStyle(color: Colors.blue.shade700),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       );
     }).toList();
   }
 
   List<String> _getMusclesForExercise() {
     // This could be fetched from a database in a real app
-    switch (category) {
+    switch (widget.category) {
       case 'Strength Training':
         return ['Chest', 'Shoulders', 'Triceps'];
       case 'Cardio':
@@ -187,7 +346,7 @@ class ExerciseDetailsScreen extends StatelessWidget {
 
   Widget _buildSetRow(String level, String prescription) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
+      padding: const EdgeInsets.symmetric(vertical: 12),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
@@ -195,9 +354,23 @@ class ExerciseDetailsScreen extends StatelessWidget {
             level,
             style: const TextStyle(
               fontWeight: FontWeight.bold,
+              fontSize: 16,
             ),
           ),
-          Text(prescription),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            decoration: BoxDecoration(
+              color: Colors.blue.shade50,
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Text(
+              prescription,
+              style: TextStyle(
+                color: Colors.blue.shade700,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
         ],
       ),
     );
@@ -205,11 +378,49 @@ class ExerciseDetailsScreen extends StatelessWidget {
 
   Widget _buildTipCard(String title, String tip, IconData icon) {
     return Card(
-      margin: const EdgeInsets.only(bottom: 8),
-      child: ListTile(
-        leading: Icon(icon, color: Colors.blue),
-        title: Text(title),
-        subtitle: Text(tip),
+      margin: const EdgeInsets.only(bottom: 12),
+      elevation: 2,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: Colors.blue.shade50,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(icon, color: Colors.blue.shade600, size: 24),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    tip,
+                    style: TextStyle(
+                      color: Colors.grey.shade700,
+                      height: 1.5,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
