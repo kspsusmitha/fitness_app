@@ -4,6 +4,7 @@ import 'package:percent_indicator/circular_percent_indicator.dart';
 import 'package:percent_indicator/linear_percent_indicator.dart';
 import 'package:youtube_player_flutter/youtube_player_flutter.dart';
 import '../services/step_counter_service.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class HomeTab extends StatefulWidget {
   const HomeTab({super.key});
@@ -13,19 +14,21 @@ class HomeTab extends StatefulWidget {
 }
 
 class _HomeTabState extends State<HomeTab> {
-  // Mock data
+  // User data
   int _stepCount = 0;
   final int _stepGoal = 10000;
   final int _caloriesBurned = 450;
   final int _calorieGoal = 800;
   final int _waterGlasses = 4;
   final int _waterGoal = 8;
-  final int _proteinIntake = 85;
-  final int _proteinGoal = 120;
+  int _proteinIntake = 85;
+  int _proteinGoal = 120;
+  double _userWeight = 70.0; // Default weight
 
   @override
   void initState() {
     super.initState();
+    _loadUserData();
     _loadStepCount();
     // Listen for step count updates
     StepCounterService.instance.addStepCountListener((steps) {
@@ -41,6 +44,20 @@ class _HomeTabState extends State<HomeTab> {
   void dispose() {
     // Clean up listeners when the widget is disposed
     super.dispose();
+  }
+
+  Future<void> _loadUserData() async {
+    final prefs = await SharedPreferences.getInstance();
+    final weight = prefs.getDouble('user_weight') ?? 70.0;
+    
+    setState(() {
+      _userWeight = weight;
+      // Calculate protein goal based on weight (1.6g per kg of body weight)
+      _proteinGoal = (_userWeight * 1.6).round();
+      
+      // For demo purposes, set protein intake to 70% of goal
+      _proteinIntake = (_proteinGoal * 0.7).round();
+    });
   }
 
   Future<void> _loadStepCount() async {
@@ -62,6 +79,11 @@ class _HomeTabState extends State<HomeTab> {
           children: [
             Text('Current: $_proteinIntake g'),
             Text('Goal: $_proteinGoal g'),
+            const SizedBox(height: 8),
+            Text(
+              'Calculation: ${_userWeight.toStringAsFixed(1)} kg × 1.6 g/kg = ${(_userWeight * 1.6).round()} g',
+              style: const TextStyle(fontSize: 14, color: Colors.blue),
+            ),
             const SizedBox(height: 16),
             const Text(
               'Protein sources today:',
@@ -629,7 +651,7 @@ class _HomeTabState extends State<HomeTab> {
           const SizedBox(height: 16),
           _buildTipCard(
             'Protein Intake',
-            'Aim for 0.8-1g of protein per pound of body weight to support muscle recovery and growth.',
+            'Aim for 1.6g of protein per kg of body weight to support muscle recovery and growth.',
             Icons.egg_alt,
           ),
           const SizedBox(height: 12),
@@ -645,7 +667,7 @@ class _HomeTabState extends State<HomeTab> {
                 Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (context) => MoreTipsPage(),
+                    builder: (context) => const MoreTipsPage(),
                   ),
                 );
               },

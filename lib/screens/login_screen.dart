@@ -1,6 +1,8 @@
 import 'package:fitness_app/screens/register_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:fitness_app/main.dart';
+import 'package:fitness_app/screens/trainer/trainer_home_page.dart';
+import 'package:fitness_app/screens/trainee/trainee_home_page.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -409,15 +411,17 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
 
   void _handleTrainerLogin() {
     // Navigate to trainer dashboard
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Trainer login successful')),
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(builder: (context) => const TrainerHomePage()),
     );
   }
 
   void _handleTraineeLogin() {
     // Navigate to trainee dashboard
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Trainee login successful')),
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(builder: (context) => const TraineeHomePage()),
     );
   }
 } 
