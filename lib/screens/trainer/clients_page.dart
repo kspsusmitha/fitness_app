@@ -8,7 +8,67 @@ class ClientsPage extends StatefulWidget {
 }
 
 class _ClientsPageState extends State<ClientsPage> {
+  final TextEditingController _nameController = TextEditingController();
+  final TextEditingController _goalController = TextEditingController();
+  final TextEditingController _emailController = TextEditingController();
   String? _selectedWorkoutPlan;
+
+  // Initial static clients with unique keys and assignedWorkout field
+  List<Map<String, dynamic>> _clients = [
+    {
+      'key': '1',
+      'name': 'Sarah Johnson',
+      'goal': 'Weight Loss',
+      'lastSession': 'Last session: 2 days ago',
+      'progress': 0.7,
+      'email': 'sarah@example.com',
+      'assignedWorkout': null,
+    },
+    {
+      'key': '2',
+      'name': 'Mike Thompson',
+      'goal': 'Muscle Gain',
+      'lastSession': 'Last session: Yesterday',
+      'progress': 0.5,
+      'email': 'mike@example.com',
+      'assignedWorkout': null,
+    },
+    {
+      'key': '3',
+      'name': 'Emily Davis',
+      'goal': 'Flexibility',
+      'lastSession': 'Last session: Today',
+      'progress': 0.8,
+      'email': 'emily@example.com',
+      'assignedWorkout': null,
+    },
+    {
+      'key': '4',
+      'name': 'James Wilson',
+      'goal': 'Cardio Fitness',
+      'lastSession': 'Last session: 3 days ago',
+      'progress': 0.6,
+      'email': 'james@example.com',
+      'assignedWorkout': null,
+    },
+    {
+      'key': '5',
+      'name': 'Lisa Brown',
+      'goal': 'Strength Training',
+      'lastSession': 'Last session: 1 week ago',
+      'progress': 0.4,
+      'email': 'lisa@example.com',
+      'assignedWorkout': null,
+    },
+  ];
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _goalController.dispose();
+    _emailController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -53,7 +113,7 @@ class _ClientsPageState extends State<ClientsPage> {
             ),
             style: const TextStyle(color: Colors.white),
             onChanged: (value) {
-              // Implement search functionality
+              // Implement search functionality if needed
             },
           ),
         ),
@@ -67,46 +127,24 @@ class _ClientsPageState extends State<ClientsPage> {
                 topRight: Radius.circular(30),
               ),
             ),
-            child: ListView(
-              padding: const EdgeInsets.all(16),
-              children: [
-                _buildClientCard(
-                  'Sarah Johnson',
-                  'Weight Loss',
-                  'Last session: 2 days ago',
-                  0.7,
-                  context,
-                ),
-                _buildClientCard(
-                  'Mike Thompson',
-                  'Muscle Gain',
-                  'Last session: Yesterday',
-                  0.5,
-                  context,
-                ),
-                _buildClientCard(
-                  'Emily Davis',
-                  'Flexibility',
-                  'Last session: Today',
-                  0.8,
-                  context,
-                ),
-                _buildClientCard(
-                  'James Wilson',
-                  'Cardio Fitness',
-                  'Last session: 3 days ago',
-                  0.6,
-                  context,
-                ),
-                _buildClientCard(
-                  'Lisa Brown',
-                  'Strength Training',
-                  'Last session: 1 week ago',
-                  0.4,
-                  context,
-                ),
-              ],
-            ),
+            child: _clients.isEmpty
+                ? const Center(child: Text('No clients found.'))
+                : ListView.builder(
+                    padding: const EdgeInsets.all(16),
+                    itemCount: _clients.length,
+                    itemBuilder: (context, index) {
+                      final client = _clients[index];
+                      return _buildClientCard(
+                        client['key'],
+                        client['name'] ?? '',
+                        client['goal'] ?? '',
+                        client['lastSession'] ?? 'Last session: Never',
+                        client['progress'] ?? 0.0,
+                        client['assignedWorkout'],
+                        context,
+                      );
+                    },
+                  ),
           ),
         ),
       ],
@@ -114,10 +152,12 @@ class _ClientsPageState extends State<ClientsPage> {
   }
 
   Widget _buildClientCard(
+    String key,
     String name,
     String goal,
     String lastSession,
     double progress,
+    String? assignedWorkout,
     BuildContext context,
   ) {
     return Card(
@@ -136,7 +176,7 @@ class _ClientsPageState extends State<ClientsPage> {
                 CircleAvatar(
                   backgroundColor: Colors.green.shade100,
                   child: Text(
-                    name[0],
+                    name.isNotEmpty ? name[0] : '?',
                     style: TextStyle(
                       color: Colors.green.shade700,
                       fontWeight: FontWeight.bold,
@@ -162,12 +202,23 @@ class _ClientsPageState extends State<ClientsPage> {
                           fontSize: 14,
                         ),
                       ),
+                      if (assignedWorkout != null)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 8.0),
+                          child: Text(
+                            'Assigned Workout: $assignedWorkout',
+                            style: TextStyle(
+                              color: Colors.green.shade700,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
                     ],
                   ),
                 ),
                 PopupMenuButton<String>(
                   icon: const Icon(Icons.more_vert),
-                  onSelected: (value) => _handleMenuSelection(value, name, context),
+                  onSelected: (value) => _handleMenuSelection(value, key, context),
                   itemBuilder: (BuildContext context) => [
                     const PopupMenuItem(
                       value: 'edit',
@@ -180,7 +231,6 @@ class _ClientsPageState extends State<ClientsPage> {
                     const PopupMenuItem(
                       value: 'delete',
                       child: Text('Remove Client'),
-                      
                     ),
                   ],
                 ),
@@ -234,7 +284,7 @@ class _ClientsPageState extends State<ClientsPage> {
                 const SizedBox(width: 8),
                 Expanded(
                   child: ElevatedButton.icon(
-                    onPressed: () => _assignWorkout(context, name),
+                    onPressed: () => _assignWorkout(context, key, name),
                     icon: const Icon(Icons.fitness_center),
                     label: const Text('Assign'),
                     style: ElevatedButton.styleFrom(
@@ -252,16 +302,16 @@ class _ClientsPageState extends State<ClientsPage> {
     );
   }
 
-  void _handleMenuSelection(String value, String clientName, BuildContext context) {
+  void _handleMenuSelection(String value, String key, BuildContext context) {
     switch (value) {
       case 'edit':
-        _editClient(context, clientName);
+        _editClient(context, key);
         break;
       case 'message':
-        _sendMessage(context, clientName);
+        _sendMessage(context, key);
         break;
       case 'delete':
-        _showDeleteConfirmation(context, clientName);
+        _showDeleteConfirmation(context, key);
         break;
     }
   }
@@ -276,6 +326,7 @@ class _ClientsPageState extends State<ClientsPage> {
             mainAxisSize: MainAxisSize.min,
             children: [
               TextField(
+                controller: _nameController,
                 decoration: const InputDecoration(
                   labelText: 'Name',
                   hintText: 'Enter client name',
@@ -283,6 +334,7 @@ class _ClientsPageState extends State<ClientsPage> {
               ),
               const SizedBox(height: 16),
               TextField(
+                controller: _goalController,
                 decoration: const InputDecoration(
                   labelText: 'Goal',
                   hintText: 'Enter client\'s goal',
@@ -290,6 +342,7 @@ class _ClientsPageState extends State<ClientsPage> {
               ),
               const SizedBox(height: 16),
               TextField(
+                controller: _emailController,
                 decoration: const InputDecoration(
                   labelText: 'Email',
                   hintText: 'Enter client\'s email',
@@ -305,7 +358,26 @@ class _ClientsPageState extends State<ClientsPage> {
           ),
           ElevatedButton(
             onPressed: () {
-              // Add client logic here
+              final name = _nameController.text.trim();
+              final goal = _goalController.text.trim();
+              final email = _emailController.text.trim();
+              if (name.isEmpty || goal.isEmpty || email.isEmpty) return;
+
+              setState(() {
+                _clients.add({
+                  'key': DateTime.now().millisecondsSinceEpoch.toString(),
+                  'name': name,
+                  'goal': goal,
+                  'lastSession': 'Last session: Never',
+                  'progress': 0.0,
+                  'email': email,
+                  'assignedWorkout': null,
+                });
+              });
+
+              _nameController.clear();
+              _goalController.clear();
+              _emailController.clear();
               Navigator.pop(context);
             },
             style: ElevatedButton.styleFrom(
@@ -314,6 +386,141 @@ class _ClientsPageState extends State<ClientsPage> {
             child: const Text('Add'),
           ),
         ],
+      ),
+    );
+  }
+
+  void _assignWorkout(BuildContext context, String key, String clientName) {
+    setState(() {
+      _selectedWorkoutPlan = null;
+    });
+
+    showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: Text('Assign Workout to $clientName'),
+          content: SizedBox(
+            width: double.maxFinite,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('Select Workout Plan:'),
+                const SizedBox(height: 16),
+                _buildWorkoutPlanOption(
+                  'Weight Loss Program',
+                  '8 weeks',
+                  ['Cardio', 'HIIT'],
+                  context,
+                  setDialogState,
+                ),
+                _buildWorkoutPlanOption(
+                  'Strength Training',
+                  '12 weeks',
+                  ['Weights', 'Core'],
+                  context,
+                  setDialogState,
+                ),
+                _buildWorkoutPlanOption(
+                  'Flexibility Focus',
+                  '4 weeks',
+                  ['Yoga', 'Stretching'],
+                  context,
+                  setDialogState,
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: _selectedWorkoutPlan == null
+                  ? null
+                  : () {
+                      setState(() {
+                        final idx = _clients.indexWhere((c) => c['key'] == key);
+                        if (idx != -1) {
+                          _clients[idx]['assignedWorkout'] = _selectedWorkoutPlan;
+                        }
+                      });
+                      Navigator.pop(context);
+                      _showAssignmentSuccess(context, clientName);
+                    },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.green.shade700,
+                disabledBackgroundColor: Colors.grey.shade400,
+              ),
+              child: const Text('Assign'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildWorkoutPlanOption(
+    String title,
+    String duration,
+    List<String> tags,
+    BuildContext context,
+    StateSetter setDialogState,
+  ) {
+    return Card(
+      margin: const EdgeInsets.only(bottom: 8),
+      child: InkWell(
+        onTap: () {
+          setDialogState(() {
+            _selectedWorkoutPlan = title;
+          });
+        },
+        child: ListTile(
+          title: Text(title),
+          subtitle: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(duration),
+              const SizedBox(height: 4),
+              Wrap(
+                spacing: 4,
+                children: tags
+                    .map((tag) => Chip(
+                          label: Text(
+                            tag,
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.green.shade700,
+                            ),
+                          ),
+                          backgroundColor: Colors.green.shade50,
+                          padding: const EdgeInsets.all(4),
+                        ))
+                    .toList(),
+              ),
+            ],
+          ),
+          trailing: Radio<String>(
+            value: title,
+            groupValue: _selectedWorkoutPlan,
+            onChanged: (value) {
+              setDialogState(() {
+                _selectedWorkoutPlan = value;
+              });
+            },
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showAssignmentSuccess(BuildContext context, String clientName) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Workout plan assigned to $clientName successfully'),
+        backgroundColor: Colors.green.shade700,
       ),
     );
   }
@@ -454,135 +661,6 @@ class _ClientsPageState extends State<ClientsPage> {
     );
   }
 
-  void _assignWorkout(BuildContext context, String clientName) {
-    setState(() {
-      _selectedWorkoutPlan = null;
-    });
-
-    showDialog(
-      context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setDialogState) => AlertDialog(
-          title: Text('Assign Workout to $clientName'),
-          content: SizedBox(
-            width: double.maxFinite,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text('Select Workout Plan:'),
-                const SizedBox(height: 16),
-                _buildWorkoutPlanOption(
-                  'Weight Loss Program',
-                  '8 weeks',
-                  ['Cardio', 'HIIT'],
-                  context,
-                  setDialogState,
-                ),
-                _buildWorkoutPlanOption(
-                  'Strength Training',
-                  '12 weeks',
-                  ['Weights', 'Core'],
-                  context,
-                  setDialogState,
-                ),
-                _buildWorkoutPlanOption(
-                  'Flexibility Focus',
-                  '4 weeks',
-                  ['Yoga', 'Stretching'],
-                  context,
-                  setDialogState,
-                ),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Cancel'),
-            ),
-            ElevatedButton(
-              onPressed: _selectedWorkoutPlan == null
-                  ? null
-                  : () {
-                      Navigator.pop(context);
-                      _showAssignmentSuccess(context, clientName);
-                    },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.green.shade700,
-                disabledBackgroundColor: Colors.grey.shade400,
-              ),
-              child: const Text('Assign'),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildWorkoutPlanOption(
-    String title,
-    String duration,
-    List<String> tags,
-    BuildContext context,
-    StateSetter setDialogState,
-  ) {
-    return Card(
-      margin: const EdgeInsets.only(bottom: 8),
-      child: InkWell(
-        onTap: () {
-          setDialogState(() {
-            _selectedWorkoutPlan = title;
-          });
-        },
-        child: ListTile(
-          title: Text(title),
-          subtitle: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(duration),
-              const SizedBox(height: 4),
-              Wrap(
-                spacing: 4,
-                children: tags
-                    .map((tag) => Chip(
-                          label: Text(
-                            tag,
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: Colors.green.shade700,
-                            ),
-                          ),
-                          backgroundColor: Colors.green.shade50,
-                          padding: const EdgeInsets.all(4),
-                        ))
-                    .toList(),
-              ),
-            ],
-          ),
-          trailing: Radio<String>(
-            value: title,
-            groupValue: _selectedWorkoutPlan,
-            onChanged: (value) {
-              setDialogState(() {
-                _selectedWorkoutPlan = value;
-              });
-            },
-          ),
-        ),
-      ),
-    );
-  }
-
-  void _showAssignmentSuccess(BuildContext context, String clientName) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Workout plan assigned to $clientName successfully'),
-        backgroundColor: Colors.green.shade700,
-      ),
-    );
-  }
-
   void _showMessageDialog(BuildContext context, String clientName) {
     showDialog(
       context: context,
@@ -625,22 +703,22 @@ class _ClientsPageState extends State<ClientsPage> {
     );
   }
 
-  void _editClient(BuildContext context, String clientName) {
+  void _editClient(BuildContext context, String clientKey) {
     // Navigate to edit client page
     // Navigator.push(context, MaterialPageRoute(builder: (context) => EditClientPage(clientName: clientName)));
   }
 
-  void _sendMessage(BuildContext context, String clientName) {
+  void _sendMessage(BuildContext context, String clientKey) {
     // Navigate to messaging page
     // Navigator.push(context, MaterialPageRoute(builder: (context) => MessageClientPage(clientName: clientName)));
   }
 
-  void _showDeleteConfirmation(BuildContext context, String clientName) {
+  void _showDeleteConfirmation(BuildContext context, String clientKey) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Remove Client'),
-        content: Text('Are you sure you want to remove $clientName?'),
+        content: Text('Are you sure you want to remove this client?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),

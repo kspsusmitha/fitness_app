@@ -32,7 +32,7 @@ class _TrainerHomePageState extends State<TrainerHomePage> {
             index: _selectedIndex,
             children: const [
               ClientsPage(),
-              WorkoutPlansPage(),
+             // WorkoutPlansPage(),
               TrainerProfilePage(),
             ],
           ),
@@ -53,10 +53,10 @@ class _TrainerHomePageState extends State<TrainerHomePage> {
             icon: Icon(Icons.people),
             label: 'Clients',
           ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.fitness_center),
-            label: 'Workout Plans',
-          ),
+          // BottomNavigationBarItem(
+          //   icon: Icon(Icons.fitness_center),
+          //   label: 'Workout Plans',
+          // ),
           BottomNavigationBarItem(
             icon: Icon(Icons.person),
             label: 'Profile',

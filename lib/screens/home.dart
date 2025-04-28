@@ -5,6 +5,7 @@ import 'package:percent_indicator/linear_percent_indicator.dart';
 import 'package:youtube_player_flutter/youtube_player_flutter.dart';
 import '../services/step_counter_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:firebase_database/firebase_database.dart';
 
 class HomeTab extends StatefulWidget {
   const HomeTab({super.key});
@@ -17,20 +18,18 @@ class _HomeTabState extends State<HomeTab> {
   // User data
   int _stepCount = 0;
   final int _stepGoal = 10000;
-  final int _caloriesBurned = 450;
-  final int _calorieGoal = 800;
-  final int _waterGlasses = 4;
-  final int _waterGoal = 8;
-  int _proteinIntake = 85;
-  int _proteinGoal = 120;
-  double _userWeight = 70.0; // Default weight
+  int _caloriesBurned = 450;
+  int _calorieGoal = 800;
+  int _waterGlasses = 4;
+  int _waterGoal = 8;
+  double? _userWeight;
+  String? _userName;
 
   @override
   void initState() {
     super.initState();
-    _loadUserData();
+    _fetchUserDataFromDatabase();
     _loadStepCount();
-    // Listen for step count updates
     StepCounterService.instance.addStepCountListener((steps) {
       if (mounted) {
         setState(() {
@@ -40,24 +39,38 @@ class _HomeTabState extends State<HomeTab> {
     });
   }
 
-  @override
-  void dispose() {
-    // Clean up listeners when the widget is disposed
-    super.dispose();
-  }
-
-  Future<void> _loadUserData() async {
+  Future<void> _fetchUserDataFromDatabase() async {
     final prefs = await SharedPreferences.getInstance();
-    final weight = prefs.getDouble('user_weight') ?? 70.0;
-    
-    setState(() {
-      _userWeight = weight;
-      // Calculate protein goal based on weight (1.6g per kg of body weight)
-      _proteinGoal = (_userWeight * 1.6).round();
-      
-      // For demo purposes, set protein intake to 70% of goal
-      _proteinIntake = (_proteinGoal * 0.7).round();
-    });
+    final userType = prefs.getString('userType') ?? 'member';
+    final email = prefs.getString('email') ?? '';
+
+    String dbPath;
+    switch (userType) {
+      case 'trainer':
+        dbPath = 'users/trainers';
+        break;
+      case 'trainee':
+        dbPath = 'users/trainees';
+        break;
+      default:
+        dbPath = 'users/members';
+    }
+
+    final db = FirebaseDatabase.instance.ref();
+    final snapshot = await db.child(dbPath).orderByChild('email').equalTo(email).get();
+
+    if (snapshot.exists) {
+      final userMap = (snapshot.value as Map).values.first as Map;
+      setState(() {
+        _userName = userMap['name'] ?? '';
+        _userWeight = double.tryParse(userMap['weight']?.toString() ?? '') ?? 70.0;
+      });
+    } else {
+      setState(() {
+        _userName = '';
+        _userWeight = 70.0;
+      });
+    }
   }
 
   Future<void> _loadStepCount() async {
@@ -68,6 +81,9 @@ class _HomeTabState extends State<HomeTab> {
       });
     }
   }
+
+  int get _proteinGoal => ((_userWeight ?? 70.0) * 1.6).round();
+  int get _proteinIntake => (_proteinGoal * 0.7).round(); // Example: 70% of goal
 
   void _showProteinDetails() {
     showDialog(
@@ -81,7 +97,7 @@ class _HomeTabState extends State<HomeTab> {
             Text('Goal: $_proteinGoal g'),
             const SizedBox(height: 8),
             Text(
-              'Calculation: ${_userWeight.toStringAsFixed(1)} kg × 1.6 g/kg = ${(_userWeight * 1.6).round()} g',
+              'Calculation: ${_userWeight?.toStringAsFixed(1) ?? "?"} kg × 1.6 g/kg = $_proteinGoal g',
               style: const TextStyle(fontSize: 14, color: Colors.blue),
             ),
             const SizedBox(height: 16),
@@ -270,9 +286,9 @@ class _HomeTabState extends State<HomeTab> {
                       fontSize: 16,
                     ),
                   ),
-                  const Text(
-                    'John Doe',
-                    style: TextStyle(
+                  Text(
+                    _userName ?? '',
+                    style: const TextStyle(
                       color: Colors.black,
                       fontSize: 24,
                       fontWeight: FontWeight.bold,

@@ -1,8 +1,13 @@
-import 'package:fitness_app/screens/register_screen.dart';
-import 'package:flutter/material.dart';
 import 'package:fitness_app/main.dart';
+import 'package:fitness_app/screens/homepage.dart';
+import 'package:flutter/material.dart';
+import 'package:fitness_app/screens/home.dart';
 import 'package:fitness_app/screens/trainer/trainer_home_page.dart';
 import 'package:fitness_app/screens/trainee/trainee_home_page.dart';
+import 'package:fitness_app/screens/register_screen.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_database/firebase_database.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -16,9 +21,9 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _isPasswordVisible = false;
-  
   late TabController _tabController;
-  
+  bool _isLoading = false;
+
   @override
   void initState() {
     super.initState();
@@ -33,6 +38,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
     super.dispose();
   }
 
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -43,11 +49,6 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
             end: Alignment.bottomRight,
             colors: [Colors.blue.shade300, Colors.blue.shade800],
           ),
-          image: const DecorationImage(
-            image: AssetImage('assets/images/pattern.png'),
-            fit: BoxFit.cover,
-            opacity: 0.1,
-          ),
         ),
         child: SafeArea(
           child: Column(
@@ -56,13 +57,13 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
               // Logo and App Name
               Column(
                 children: [
-                  Icon(
+                  const Icon(
                     Icons.fitness_center,
                     size: 60,
                     color: Colors.white,
                   ),
                   const SizedBox(height: 16),
-                  Text(
+                  const Text(
                     'FitLife',
                     style: TextStyle(
                       fontSize: 32,
@@ -82,7 +83,6 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                 ],
               ),
               const SizedBox(height: 40),
-              
               // Tab Bar
               Container(
                 margin: const EdgeInsets.symmetric(horizontal: 24),
@@ -114,15 +114,14 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                   ],
                 ),
               ),
-              
               // Tab Content
               Expanded(
                 child: TabBarView(
                   controller: _tabController,
                   children: [
-                    _buildLoginForm('Member', _handleMemberLogin),
-                    _buildLoginForm('Trainer', _handleTrainerLogin),
-                    _buildLoginForm('Trainee', _handleTraineeLogin),
+                    _buildLoginForm('Member'),
+                    _buildLoginForm('Trainer'),
+                    _buildLoginForm('Trainee'),
                   ],
                 ),
               ),
@@ -133,13 +132,12 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
     );
   }
 
-  Widget _buildLoginForm(String userType, VoidCallback onLogin) {
+  Widget _buildLoginForm(String userType) {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(24),
       child: Column(
         children: [
           const SizedBox(height: 20),
-          // Description text based on user type
           Text(
             _getDescriptionText(userType),
             textAlign: TextAlign.center,
@@ -149,8 +147,6 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
             ),
           ),
           const SizedBox(height: 30),
-          
-          // Login Form with Glassmorphism effect
           Container(
             padding: const EdgeInsets.all(24),
             decoration: BoxDecoration(
@@ -182,7 +178,6 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                     ),
                   ),
                   const SizedBox(height: 24),
-                  
                   // Email Field
                   TextFormField(
                     controller: _emailController,
@@ -220,7 +215,6 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                     },
                   ),
                   const SizedBox(height: 16),
-                  
                   // Password Field
                   TextFormField(
                     controller: _passwordController,
@@ -269,8 +263,6 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                     },
                   ),
                   const SizedBox(height: 8),
-                  
-                  // Forgot Password
                   Align(
                     alignment: Alignment.centerRight,
                     child: TextButton(
@@ -287,17 +279,11 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                     ),
                   ),
                   const SizedBox(height: 24),
-                  
-                  // Login Button
                   SizedBox(
                     width: double.infinity,
                     height: 50,
                     child: ElevatedButton(
-                      onPressed: () {
-                        if (_formKey.currentState!.validate()) {
-                          onLogin();
-                        }
-                      },
+                      onPressed: _isLoading ? null : () => _handleLogin(userType),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: _getButtonColor(userType),
                         foregroundColor: Colors.white,
@@ -306,20 +292,22 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                         ),
                         elevation: 3,
                       ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          _getButtonIcon(userType),
-                          const SizedBox(width: 8),
-                          Text(
-                            'Login as $userType',
-                            style: const TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
+                      child: _isLoading
+                          ? const CircularProgressIndicator(color: Colors.white)
+                          : Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                _getButtonIcon(userType),
+                                const SizedBox(width: 8),
+                                Text(
+                                  'Login as $userType',
+                                  style: const TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ],
                             ),
-                          ),
-                        ],
-                      ),
                     ),
                   ),
                 ],
@@ -327,8 +315,6 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
             ),
           ),
           const SizedBox(height: 24),
-          
-          // Register Link
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
@@ -361,7 +347,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
       ),
     );
   }
-  
+
   String _getDescriptionText(String userType) {
     switch (userType) {
       case 'Member':
@@ -374,7 +360,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
         return '';
     }
   }
-  
+
   Color _getButtonColor(String userType) {
     switch (userType) {
       case 'Member':
@@ -387,7 +373,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
         return Colors.blue.shade700;
     }
   }
-  
+
   Icon _getButtonIcon(String userType) {
     switch (userType) {
       case 'Member':
@@ -401,27 +387,89 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
     }
   }
 
-  void _handleMemberLogin() {
-    // Navigate to member dashboard
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(builder: (context) => const HomePage()),
-    );
+  Future<void> _handleLogin(String userType) async {
+    if (!_formKey.currentState!.validate()) return;
+
+    setState(() => _isLoading = true);
+
+    String email = _emailController.text.trim();
+    String password = _passwordController.text;
+    String dbPath;
+
+    // Determine database path
+    switch (userType.toLowerCase()) {
+      case 'member':
+        dbPath = 'users/members';
+        break;
+      case 'trainer':
+        dbPath = 'users/trainers';
+        break;
+      case 'trainee':
+        dbPath = 'users/trainees';
+        break;
+      default:
+        dbPath = 'users/members';
+    }
+
+    try {
+      final db = FirebaseDatabase.instance.ref();
+      final snapshot = await db.child(dbPath).orderByChild('email').equalTo(email).get();
+
+      setState(() => _isLoading = false);
+
+      if (!snapshot.exists) {
+        _showError('No $userType found with this email.');
+        return;
+      }
+
+      final userMap = (snapshot.value as Map).values.first as Map;
+      if (userMap['password'] != password) {
+        _showError('Incorrect password.');
+        return;
+      }
+
+      // Save login info
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool('isLoggedIn', true);
+      await prefs.setString('userType', userType.toLowerCase());
+      await prefs.setString('email', email);
+
+      // Navigate to the correct home page
+      switch (userType.toLowerCase()) {
+        case 'member':
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(builder: (context) => const HomePage()),
+          );
+          break;
+        case 'trainer':
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(builder: (context) => const TrainerHomePage()),
+          );
+          break;
+        case 'trainee':
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(builder: (context) => const TraineeHomePage()),
+          );
+          break;
+      }
+    } catch (e) {
+      setState(() => _isLoading = false);
+      _showError('Login failed: $e');
+    }
   }
 
-  void _handleTrainerLogin() {
-    // Navigate to trainer dashboard
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(builder: (context) => const TrainerHomePage()),
+  void _showError(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: Colors.red,
+      ),
     );
   }
+}
 
-  void _handleTraineeLogin() {
-    // Navigate to trainee dashboard
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(builder: (context) => const TraineeHomePage()),
-    );
-  }
+Future<void> logout(BuildContext context) async {
+  final prefs = await SharedPreferences.getInstance();
+  await prefs.clear();
+  Navigator.of(context).pushReplacementNamed('/login');
 } 

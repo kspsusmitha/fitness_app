@@ -133,14 +133,6 @@ class _TrainerProfilePageState extends State<TrainerProfilePage> {
     }
   }
 
-  Future<void> _logout() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.clear();
-    if (mounted) {
-      Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false);
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
@@ -191,39 +183,40 @@ class _TrainerProfilePageState extends State<TrainerProfilePage> {
             _buildInfoCard('Height (cm)', _trainerData!['height']?.toString()),
             _buildInfoCard('Weight (kg)', _trainerData!['weight']?.toString()),
             const SizedBox(height: 24),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24.0),
-              child: ElevatedButton.icon(
-                onPressed: _showEditProfileDialog,
-                icon: const Icon(Icons.edit),
-                label: const Text("Edit Profile"),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: missing ? Colors.orange : Colors.blue,
-                  foregroundColor: Colors.white,
-                  minimumSize: const Size(double.infinity, 48),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
+            if (missing)
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 24.0),
+                child: ElevatedButton.icon(
+                  onPressed: _showEditProfileDialog,
+                  icon: const Icon(Icons.edit),
+                  label: const Text("Edit Profile"),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.orange,
+                    foregroundColor: Colors.white,
+                    minimumSize: const Size(double.infinity, 48),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
                   ),
                 ),
               ),
-            ),
-            const SizedBox(height: 16),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24.0),
-              child: ElevatedButton.icon(
-                onPressed: _logout,
-                icon: const Icon(Icons.logout),
-                label: const Text("Logout"),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.red,
-                  foregroundColor: Colors.white,
-                  minimumSize: const Size(double.infinity, 48),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
+            if (!missing)
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 24.0),
+                child: ElevatedButton.icon(
+                  onPressed: _showEditProfileDialog,
+                  icon: const Icon(Icons.edit),
+                  label: const Text("Edit Profile"),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.blue,
+                    foregroundColor: Colors.white,
+                    minimumSize: const Size(double.infinity, 48),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
                   ),
                 ),
               ),
-            ),
             const SizedBox(height: 24),
           ],
         ),
@@ -275,4 +268,4 @@ class _TrainerProfilePageState extends State<TrainerProfilePage> {
     _weightController.dispose();
     super.dispose();
   }
-}
+} 
