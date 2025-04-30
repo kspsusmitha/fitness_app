@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:youtube_player_flutter/youtube_player_flutter.dart';
+import 'package:video_player/video_player.dart';
+import 'package:chewie/chewie.dart';
 
 class PreDesignedWorkouts extends StatelessWidget {
   const PreDesignedWorkouts({super.key});
@@ -16,19 +17,19 @@ class PreDesignedWorkouts extends StatelessWidget {
           exercises: [
             Exercise(
               name: 'Push-ups',
-              youtubeUrl: 'https://www.youtube.com/watch?v=IODxDxX7oi4',
+              videoUrl: 'https://flutter.github.io/assets-for-api-docs/assets/videos/butterfly.mp4',
               description: 'Basic push-up form guide',
               duration: '3 sets x 10 reps',
             ),
             Exercise(
               name: 'Squats',
-              youtubeUrl: 'https://www.youtube.com/watch?v=YaXPRqUwItQ',
+              videoUrl: 'https://flutter.github.io/assets-for-api-docs/assets/videos/butterfly.mp4',
               description: 'Proper squat technique',
               duration: '3 sets x 12 reps',
             ),
             Exercise(
               name: 'Plank',
-              youtubeUrl: 'https://www.youtube.com/watch?v=ASdvN_XEl_c',
+              videoUrl: 'https://flutter.github.io/assets-for-api-docs/assets/videos/butterfly.mp4',
               description: 'Core strengthening exercise',
               duration: '3 sets x 30 seconds',
             ),
@@ -42,19 +43,19 @@ class PreDesignedWorkouts extends StatelessWidget {
           exercises: [
             Exercise(
               name: 'Burpees',
-              youtubeUrl: 'https://www.youtube.com/watch?v=TU8QYVW0gDU',
+              videoUrl: 'https://flutter.github.io/assets-for-api-docs/assets/videos/butterfly.mp4',
               description: 'Full body high-intensity exercise',
               duration: '4 sets x 10 reps',
             ),
             Exercise(
               name: 'Mountain Climbers',
-              youtubeUrl: 'https://www.youtube.com/watch?v=nmwgirgXLYM',
+              videoUrl: 'https://flutter.github.io/assets-for-api-docs/assets/videos/butterfly.mp4',
               description: 'Dynamic cardio movement',
               duration: '3 sets x 30 seconds',
             ),
             Exercise(
               name: 'Jumping Jacks',
-              youtubeUrl: 'https://www.youtube.com/watch?v=c4DAnQ6DtF8',
+              videoUrl: 'https://flutter.github.io/assets-for-api-docs/assets/videos/butterfly.mp4',
               description: 'Classic cardio exercise',
               duration: '3 sets x 45 seconds',
             ),
@@ -68,19 +69,19 @@ class PreDesignedWorkouts extends StatelessWidget {
           exercises: [
             Exercise(
               name: 'Crunches',
-              youtubeUrl: 'https://www.youtube.com/watch?v=5ER5Of4MOPI',
+              videoUrl: 'https://flutter.github.io/assets-for-api-docs/assets/videos/butterfly.mp4',
               description: 'Basic ab exercise',
               duration: '3 sets x 15 reps',
             ),
             Exercise(
               name: 'Russian Twists',
-              youtubeUrl: 'https://www.youtube.com/watch?v=wkD8rjkodUI',
+              videoUrl: 'https://flutter.github.io/assets-for-api-docs/assets/videos/butterfly.mp4',
               description: 'Rotational core exercise',
               duration: '3 sets x 20 reps',
             ),
             Exercise(
               name: 'Leg Raises',
-              youtubeUrl: 'https://www.youtube.com/watch?v=l4kQd9eWclE',
+              videoUrl: 'https://flutter.github.io/assets-for-api-docs/assets/videos/butterfly.mp4',
               description: 'Lower ab focus',
               duration: '3 sets x 12 reps',
             ),
@@ -94,19 +95,19 @@ class PreDesignedWorkouts extends StatelessWidget {
           exercises: [
             Exercise(
               name: 'Lunges',
-              youtubeUrl: 'https://www.youtube.com/watch?v=QOVaHwm-Q6U',
+              videoUrl: 'https://flutter.github.io/assets-for-api-docs/assets/videos/butterfly.mp4',
               description: 'Lower body strength',
               duration: '3 sets x 12 reps per leg',
             ),
             Exercise(
               name: 'Diamond Push-ups',
-              youtubeUrl: 'https://www.youtube.com/watch?v=J0DnG1_S92I',
+              videoUrl: 'https://flutter.github.io/assets-for-api-docs/assets/videos/butterfly.mp4',
               description: 'Tricep focus push-up variation',
               duration: '3 sets x 8 reps',
             ),
             Exercise(
               name: 'Wall Sits',
-              youtubeUrl: 'https://www.youtube.com/watch?v=y4Wo095zPnc',
+              videoUrl: 'https://flutter.github.io/assets-for-api-docs/assets/videos/butterfly.mp4',
               description: 'Lower body endurance',
               duration: '3 sets x 45 seconds',
             ),
@@ -222,7 +223,7 @@ class PreDesignedWorkouts extends StatelessWidget {
           ),
           SizedBox(
             height: 220,
-            child: ExerciseVideoPlayer(youtubeUrl: exercise.youtubeUrl),
+            child: ExerciseVideoPlayer(videoUrl: exercise.videoUrl),
           ),
         ],
       ),
@@ -233,13 +234,13 @@ class PreDesignedWorkouts extends StatelessWidget {
 // Exercise class
 class Exercise {
   final String name;
-  final String youtubeUrl;
+  final String videoUrl;
   final String description;
   final String duration;
 
   Exercise({
     required this.name,
-    required this.youtubeUrl,
+    required this.videoUrl,
     required this.description,
     required this.duration,
   });
@@ -247,11 +248,11 @@ class Exercise {
 
 // ExerciseVideoPlayer widget
 class ExerciseVideoPlayer extends StatefulWidget {
-  final String youtubeUrl;
+  final String videoUrl;
 
   const ExerciseVideoPlayer({
     super.key,
-    required this.youtubeUrl,
+    required this.videoUrl,
   });
 
   @override
@@ -259,36 +260,86 @@ class ExerciseVideoPlayer extends StatefulWidget {
 }
 
 class _ExerciseVideoPlayerState extends State<ExerciseVideoPlayer> {
-  late YoutubePlayerController _controller;
+  late VideoPlayerController _videoPlayerController;
+  ChewieController? _chewieController;
+  bool _isInitialized = false;
 
   @override
   void initState() {
     super.initState();
-    final videoId = YoutubePlayer.convertUrlToId(widget.youtubeUrl);
-    _controller = YoutubePlayerController(
-      initialVideoId: videoId!,
-      flags: const YoutubePlayerFlags(
-        autoPlay: false,
-        mute: false,
+    _initializeVideo();
+  }
+
+  Future<void> _initializeVideo() async {
+    _videoPlayerController = VideoPlayerController.network(widget.videoUrl);
+    await _videoPlayerController.initialize();
+    
+    _chewieController = ChewieController(
+      videoPlayerController: _videoPlayerController,
+      autoPlay: false,
+      looping: true,
+      aspectRatio: 16 / 9,
+      placeholder: Container(
+        color: Colors.grey[200],
+        child: const Center(
+          child: CircularProgressIndicator(),
+        ),
+      ),
+      materialProgressColors: ChewieProgressColors(
+        playedColor: Colors.blue,
+        handleColor: Colors.blue,
+        backgroundColor: Colors.grey.shade300,
+        bufferedColor: Colors.blue.shade100,
       ),
     );
+
+    setState(() {
+      _isInitialized = true;
+    });
   }
 
   @override
   void dispose() {
-    _controller.dispose();
+    _videoPlayerController.dispose();
+    _chewieController?.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    return YoutubePlayer(
-      controller: _controller,
-      showVideoProgressIndicator: true,
-      progressColors: const ProgressBarColors(
-        playedColor: Colors.blue,
-        bufferedColor: Colors.grey,
-      ),
+    if (!_isInitialized) {
+      return const Center(
+        child: CircularProgressIndicator(),
+      );
+    }
+
+    return Stack(
+      alignment: Alignment.center,
+      children: [
+        Chewie(controller: _chewieController!),
+        Container(
+          decoration: BoxDecoration(
+            color: Colors.black.withOpacity(0.3),
+            shape: BoxShape.circle,
+          ),
+          child: IconButton(
+            icon: Icon(
+              _videoPlayerController.value.isPlaying
+                  ? Icons.pause
+                  : Icons.play_arrow,
+              color: Colors.white,
+              size: 50,
+            ),
+            onPressed: () {
+              if (_videoPlayerController.value.isPlaying) {
+                _chewieController?.pause();
+              } else {
+                _chewieController?.play();
+              }
+            },
+          ),
+        ),
+      ],
     );
   }
 } 
