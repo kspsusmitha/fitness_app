@@ -173,226 +173,223 @@ class _ClientsPageState extends State<ClientsPage> {
   }
 
   void _showAddClientDialog(BuildContext context) {
+    final searchController = TextEditingController();
+    List<Map<String, dynamic>> searchResults = [];
+    bool isSearching = false;
+
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Add New Trainee'),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: _nameController,
-                decoration: const InputDecoration(
-                  labelText: 'Name',
-                  hintText: 'Enter trainee name',
-                  prefixIcon: Icon(Icons.person),
-                  border: OutlineInputBorder(),
-                ),
-              ),
-              const SizedBox(height: 16),
-              TextField(
-                controller: _emailController,
-                keyboardType: TextInputType.emailAddress,
-                decoration: const InputDecoration(
-                  labelText: 'Email',
-                  hintText: 'Enter trainee\'s email',
-                  prefixIcon: Icon(Icons.email),
-                  border: OutlineInputBorder(),
-                ),
-              ),
-              const SizedBox(height: 16),
-              TextField(
-                controller: _goalController,
-                decoration: const InputDecoration(
-                  labelText: 'Goal',
-                  hintText: 'Enter trainee\'s goal',
-                  prefixIcon: Icon(Icons.flag),
-                  border: OutlineInputBorder(),
-                ),
-              ),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              _nameController.clear();
-              _emailController.clear();
-              _goalController.clear();
-              Navigator.pop(context);
-            },
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              final name = _nameController.text.trim();
-              final email = _emailController.text.trim();
-              final goal = _goalController.text.trim();
-
-              // Validate inputs
-              if (name.isEmpty || email.isEmpty || goal.isEmpty) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Please fill in all fields'),
-                    backgroundColor: Colors.red,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setState) => AlertDialog(
+          title: const Text('Add Existing Trainee'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: searchController,
+                  decoration: const InputDecoration(
+                    labelText: 'Search by Email',
+                    hintText: 'Enter trainee email',
+                    prefixIcon: Icon(Icons.search),
+                    border: OutlineInputBorder(),
                   ),
-                );
-                return;
-              }
+                  onChanged: (value) async {
+                    if (value.isEmpty) {
+                      setState(() {
+                        searchResults = [];
+                        isSearching = false;
+                      });
+                      return;
+                    }
 
-              if (!email.contains('@') || !email.contains('.')) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Please enter a valid email address'),
-                    backgroundColor: Colors.red,
+                    setState(() => isSearching = true);
+
+                    try {
+                      // Search for trainees without a trainer
+                      final snapshot = await _database
+                          .child('users/trainees')
+                          .orderByChild('email')
+                          .startAt(value)
+                          .endAt(value + '\uf8ff')
+                          .get();
+
+                      if (snapshot.exists) {
+                        final data = snapshot.value as Map;
+                        searchResults = data.entries
+                            .where((entry) {
+                              final trainee = entry.value as Map;
+                              // Only show trainees who don't have a trainer or have this trainer
+                              return trainee['trainerId'] == null || 
+                                     trainee['trainerId'] == _trainerId;
+                            })
+                            .map((entry) => {
+                                  'key': entry.key,
+                                  'name': (entry.value as Map)['name'] ?? 'No Name',
+                                  'email': (entry.value as Map)['email'] ?? 'No Email',
+                                })
+                            .toList();
+                      } else {
+                        searchResults = [];
+                      }
+                    } catch (e) {
+                      print('Error searching trainees: $e');
+                      searchResults = [];
+                    }
+
+                    setState(() => isSearching = false);
+                  },
+                ),
+                const SizedBox(height: 16),
+                if (isSearching)
+                  const Center(child: CircularProgressIndicator())
+                else if (searchResults.isNotEmpty)
+                  ...searchResults.map((trainee) => ListTile(
+                        leading: CircleAvatar(
+                          backgroundColor: Colors.green.shade100,
+                          child: Text(
+                            trainee['name'][0],
+                            style: TextStyle(
+                              color: Colors.green.shade700,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                        title: Text(trainee['name']),
+                        subtitle: Text(trainee['email']),
+                        onTap: () async {
+                          try {
+                            // Update trainee with trainer ID
+                            await _database
+                                .child('users/trainees/${trainee['key']}')
+                                .update({
+                              'trainerId': _trainerId,
+                              'assignedAt': ServerValue.timestamp,
+                            });
+
+                            if (mounted) {
+                              Navigator.pop(context);
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('Trainee added successfully'),
+                                  backgroundColor: Colors.green,
+                                ),
+                              );
+                            }
+                          } catch (e) {
+                            print('Error adding trainee: $e');
+                            if (mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text('Error adding trainee: $e'),
+                                  backgroundColor: Colors.red,
+                                ),
+                              );
+                            }
+                          }
+                        },
+                      ))
+                else if (searchController.text.isNotEmpty)
+                  const Center(
+                    child: Text('No trainees found'),
                   ),
-                );
-                return;
-              }
-
-              setState(() => _isLoading = true);
-
-              try {
-                // Check if email already exists
-                final emailCheckSnapshot = await _database
-                    .child('users/trainees')
-                    .orderByChild('email')
-                    .equalTo(email)
-                    .get();
-
-                if (emailCheckSnapshot.exists) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('A trainee with this email already exists'),
-                      backgroundColor: Colors.red,
-                    ),
-                  );
-                  return;
-                }
-
-                // Create new trainee in database
-                final newTraineeRef = _database.child('users/trainees').push();
-                await newTraineeRef.set({
-                  'name': name,
-                  'email': email,
-                  'trainerId': _trainerId,
-                  'createdAt': ServerValue.timestamp,
-                  'lastSession': null,
-                  'progress': {
-                    'goals': {
-                      'primary': goal,
-                      'achieved': 0,
-                      'total': 0,
-                    },
-                    'workouts': {
-                      'completed': 0,
-                      'total': 0,
-                    },
-                    'weight': {
-                      'current': null,
-                      'goal': null,
-                      'history': {},
-                    },
-                  },
-                  'workoutPlans': {},
-                  'status': 'active',
-                  'notifications': {
-                    'enabled': true,
-                    'lastSent': null,
-                  },
-                  'measurements': {
-                    'height': null,
-                    'weight': null,
-                    'bmi': null,
-                    'lastUpdated': null,
-                  },
-                  'attendance': {
-                    'total': 0,
-                    'missed': 0,
-                    'history': {},
-                  },
-                });
-
-                // Clear form and close dialog
-                _nameController.clear();
-                _emailController.clear();
-                _goalController.clear();
-                
-                if (mounted) {
-                  Navigator.pop(context);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Trainee added successfully'),
-                      backgroundColor: Colors.green,
-                    ),
-                  );
-                }
-              } catch (e) {
-                print('Error adding trainee: $e');
-                if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('Error adding trainee: $e'),
-                      backgroundColor: Colors.red,
-                    ),
-                  );
-                }
-              } finally {
-                if (mounted) {
-                  setState(() => _isLoading = false);
-                }
-              }
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.green.shade700,
-              foregroundColor: Colors.white,
+              ],
             ),
-            child: const Text('Add'),
           ),
-        ],
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel'),
+            ),
+          ],
+        ),
       ),
     );
   }
 
   Future<void> _assignWorkout(BuildContext context, String traineeKey, String traineeName) async {
-    setState(() {
-      _selectedWorkoutPlan = null;
-    });
+    final workoutNameController = TextEditingController();
+    final workoutDescController = TextEditingController();
+    final durationController = TextEditingController();
+    List<String> selectedExercises = [];
+
+    final exercises = [
+      'Push-ups',
+      'Pull-ups',
+      'Squats',
+      'Deadlifts',
+      'Bench Press',
+      'Lunges',
+      'Planks',
+      'Burpees',
+      'Mountain Climbers',
+      'Jumping Jacks',
+    ];
 
     showDialog(
       context: context,
       builder: (context) => StatefulBuilder(
-        builder: (context, setDialogState) => AlertDialog(
+        builder: (context, setState) => AlertDialog(
           title: Text('Assign Workout to $traineeName'),
-          content: SizedBox(
-            width: double.maxFinite,
+          content: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('Select Workout Plan:'),
+                TextField(
+                  controller: workoutNameController,
+                  decoration: const InputDecoration(
+                    labelText: 'Workout Name',
+                    hintText: 'Enter workout name',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
                 const SizedBox(height: 16),
-                _buildWorkoutPlanOption(
-                  'Weight Loss Program',
-                  '8 weeks',
-                  ['Cardio', 'HIIT'],
-                  context,
-                  setDialogState,
+                TextField(
+                  controller: workoutDescController,
+                  maxLines: 3,
+                  decoration: const InputDecoration(
+                    labelText: 'Description',
+                    hintText: 'Enter workout description',
+                    border: OutlineInputBorder(),
+                  ),
                 ),
-                _buildWorkoutPlanOption(
-                  'Strength Training',
-                  '12 weeks',
-                  ['Weights', 'Core'],
-                  context,
-                  setDialogState,
+                const SizedBox(height: 16),
+                TextField(
+                  controller: durationController,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(
+                    labelText: 'Duration (weeks)',
+                    hintText: 'Enter duration in weeks',
+                    border: OutlineInputBorder(),
+                  ),
                 ),
-                _buildWorkoutPlanOption(
-                  'Flexibility Focus',
-                  '4 weeks',
-                  ['Yoga', 'Stretching'],
-                  context,
-                  setDialogState,
+                const SizedBox(height: 16),
+                const Text(
+                  'Select Exercises:',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  children: exercises.map((exercise) {
+                    final isSelected = selectedExercises.contains(exercise);
+                    return FilterChip(
+                      label: Text(exercise),
+                      selected: isSelected,
+                      onSelected: (selected) {
+                        setState(() {
+                          if (selected) {
+                            selectedExercises.add(exercise);
+                          } else {
+                            selectedExercises.remove(exercise);
+                          }
+                        });
+                      },
+                      backgroundColor: isSelected ? Colors.green.shade100 : null,
+                      checkmarkColor: Colors.green.shade700,
+                    );
+                  }).toList(),
                 ),
               ],
             ),
@@ -403,73 +400,67 @@ class _ClientsPageState extends State<ClientsPage> {
               child: const Text('Cancel'),
             ),
             ElevatedButton(
-              onPressed: _selectedWorkoutPlan == null
-                  ? null
-                  : () async {
-                      await _assignWorkoutPlan(traineeKey, _selectedWorkoutPlan!);
-                      Navigator.pop(context);
-                    },
+              onPressed: () async {
+                final name = workoutNameController.text.trim();
+                final description = workoutDescController.text.trim();
+                final duration = durationController.text.trim();
+
+                if (name.isEmpty || description.isEmpty || duration.isEmpty || selectedExercises.isEmpty) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Please fill in all fields and select exercises'),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                  return;
+                }
+
+                try {
+                  final workoutKey = DateTime.now().millisecondsSinceEpoch.toString();
+                  await _database.child('users/trainees/$traineeKey/workoutPlans/$workoutKey').set({
+                    'name': name,
+                    'description': description,
+                    'duration': int.parse(duration),
+                    'exercises': selectedExercises,
+                    'assignedAt': ServerValue.timestamp,
+                    'status': 'active',
+                    'progress': 0,
+                    'completedSessions': 0,
+                    'totalSessions': int.parse(duration) * 7, // Assuming daily sessions
+                  });
+
+                  // Add to trainer's assigned workouts
+                  await _database.child('users/trainers/$_trainerId/assignedWorkouts/$workoutKey').set({
+                    'traineeId': traineeKey,
+                    'workoutName': name,
+                    'assignedAt': ServerValue.timestamp,
+                  });
+
+                  if (mounted) {
+                    Navigator.pop(context);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Workout assigned successfully'),
+                        backgroundColor: Colors.green,
+                      ),
+                    );
+                  }
+                } catch (e) {
+                  print('Error assigning workout: $e');
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Error assigning workout: $e'),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                }
+              },
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.green.shade700,
-                disabledBackgroundColor: Colors.grey.shade400,
               ),
               child: const Text('Assign'),
             ),
           ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildWorkoutPlanOption(
-    String title,
-    String duration,
-    List<String> tags,
-    BuildContext context,
-    StateSetter setDialogState,
-  ) {
-    return Card(
-      margin: const EdgeInsets.only(bottom: 8),
-      child: InkWell(
-        onTap: () {
-          setDialogState(() {
-            _selectedWorkoutPlan = title;
-          });
-        },
-        child: ListTile(
-          title: Text(title),
-          subtitle: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(duration),
-              const SizedBox(height: 4),
-              Wrap(
-                spacing: 4,
-                children: tags
-                    .map((tag) => Chip(
-                          label: Text(
-                            tag,
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: Colors.green.shade700,
-                            ),
-                          ),
-                          backgroundColor: Colors.green.shade50,
-                          padding: const EdgeInsets.all(4),
-                        ))
-                    .toList(),
-              ),
-            ],
-          ),
-          trailing: Radio<String>(
-            value: title,
-            groupValue: _selectedWorkoutPlan,
-            onChanged: (value) {
-              setDialogState(() {
-                _selectedWorkoutPlan = value;
-              });
-            },
-          ),
         ),
       ),
     );
@@ -975,33 +966,6 @@ class _ClientsPageState extends State<ClientsPage> {
       case 'delete':
         _showDeleteConfirmation(context, key);
         break;
-    }
-  }
-
-  Future<void> _assignWorkoutPlan(String traineeKey, String workoutPlan) async {
-    try {
-      await _database.child('users/trainees/$traineeKey/workoutPlans').update({
-        workoutPlan: {
-          'assignedAt': ServerValue.timestamp,
-          'status': 'active',
-          'progress': 0,
-          'totalSessions': 12, // Example value
-        }
-      });
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Workout plan assigned successfully'),
-          backgroundColor: Colors.green,
-        ),
-      );
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error assigning workout plan: $e'),
-          backgroundColor: Colors.red,
-        ),
-      );
     }
   }
 } 
