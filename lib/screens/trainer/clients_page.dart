@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_database/firebase_database.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:async';
 
 class ClientsPage extends StatefulWidget {
   const ClientsPage({super.key});
@@ -8,319 +11,172 @@ class ClientsPage extends StatefulWidget {
 }
 
 class _ClientsPageState extends State<ClientsPage> {
+  final DatabaseReference _database = FirebaseDatabase.instance.ref();
+  final TextEditingController _searchController = TextEditingController();
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _goalController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
   String? _selectedWorkoutPlan;
-
-  // Initial static clients with unique keys and assignedWorkout field
-  List<Map<String, dynamic>> _clients = [
-    {
-      'key': '1',
-      'name': 'Sarah Johnson',
-      'goal': 'Weight Loss',
-      'lastSession': 'Last session: 2 days ago',
-      'progress': 0.7,
-      'email': 'sarah@example.com',
-      'assignedWorkout': null,
-    },
-    {
-      'key': '2',
-      'name': 'Mike Thompson',
-      'goal': 'Muscle Gain',
-      'lastSession': 'Last session: Yesterday',
-      'progress': 0.5,
-      'email': 'mike@example.com',
-      'assignedWorkout': null,
-    },
-    {
-      'key': '3',
-      'name': 'Emily Davis',
-      'goal': 'Flexibility',
-      'lastSession': 'Last session: Today',
-      'progress': 0.8,
-      'email': 'emily@example.com',
-      'assignedWorkout': null,
-    },
-    {
-      'key': '4',
-      'name': 'James Wilson',
-      'goal': 'Cardio Fitness',
-      'lastSession': 'Last session: 3 days ago',
-      'progress': 0.6,
-      'email': 'james@example.com',
-      'assignedWorkout': null,
-    },
-    {
-      'key': '5',
-      'name': 'Lisa Brown',
-      'goal': 'Strength Training',
-      'lastSession': 'Last session: 1 week ago',
-      'progress': 0.4,
-      'email': 'lisa@example.com',
-      'assignedWorkout': null,
-    },
-  ];
+  bool _isLoading = true;
+  List<Map<String, dynamic>> _trainees = [];
+  String? _trainerId;
+  StreamSubscription? _traineesSubscription;
 
   @override
-  void dispose() {
-    _nameController.dispose();
-    _goalController.dispose();
-    _emailController.dispose();
-    super.dispose();
+  void initState() {
+    super.initState();
+    _initializeTrainerData();
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Padding(
-          padding: const EdgeInsets.all(16),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Text(
-                'My Clients',
-                style: TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white,
-                ),
-              ),
-              IconButton(
-                icon: const Icon(Icons.add_circle, color: Colors.white),
-                onPressed: () {
-                  _showAddClientDialog(context);
-                },
-              ),
-            ],
-          ),
-        ),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          child: TextField(
-            decoration: InputDecoration(
-              hintText: 'Search clients...',
-              hintStyle: TextStyle(color: Colors.white.withOpacity(0.7)),
-              prefixIcon: Icon(Icons.search, color: Colors.white.withOpacity(0.7)),
-              filled: true,
-              fillColor: Colors.white.withOpacity(0.2),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: BorderSide.none,
-              ),
-              contentPadding: const EdgeInsets.symmetric(vertical: 0),
-            ),
-            style: const TextStyle(color: Colors.white),
-            onChanged: (value) {
-              // Implement search functionality if needed
-            },
-          ),
-        ),
-        const SizedBox(height: 16),
-        Expanded(
-          child: Container(
-            decoration: const BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.only(
-                topLeft: Radius.circular(30),
-                topRight: Radius.circular(30),
-              ),
-            ),
-            child: _clients.isEmpty
-                ? const Center(child: Text('No clients found.'))
-                : ListView.builder(
-                    padding: const EdgeInsets.all(16),
-                    itemCount: _clients.length,
-                    itemBuilder: (context, index) {
-                      final client = _clients[index];
-                      return _buildClientCard(
-                        client['key'],
-                        client['name'] ?? '',
-                        client['goal'] ?? '',
-                        client['lastSession'] ?? 'Last session: Never',
-                        client['progress'] ?? 0.0,
-                        client['assignedWorkout'],
-                        context,
-                      );
-                    },
-                  ),
-          ),
-        ),
-      ],
-    );
-  }
+  Future<void> _initializeTrainerData() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final email = prefs.getString('email') ?? '';
+      
+      // Get trainer data
+      final trainerSnapshot = await _database
+          .child('users/trainers')
+          .orderByChild('email')
+          .equalTo(email)
+          .get();
 
-  Widget _buildClientCard(
-    String key,
-    String name,
-    String goal,
-    String lastSession,
-    double progress,
-    String? assignedWorkout,
-    BuildContext context,
-  ) {
-    return Card(
-      margin: const EdgeInsets.only(bottom: 16),
-      elevation: 2,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                CircleAvatar(
-                  backgroundColor: Colors.green.shade100,
-                  child: Text(
-                    name.isNotEmpty ? name[0] : '?',
-                    style: TextStyle(
-                      color: Colors.green.shade700,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        name,
-                        style: const TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 16,
-                        ),
-                      ),
-                      Text(
-                        goal,
-                        style: TextStyle(
-                          color: Colors.grey.shade700,
-                          fontSize: 14,
-                        ),
-                      ),
-                      if (assignedWorkout != null)
-                        Padding(
-                          padding: const EdgeInsets.only(top: 8.0),
-                          child: Text(
-                            'Assigned Workout: $assignedWorkout',
-                            style: TextStyle(
-                              color: Colors.green.shade700,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                    ],
-                  ),
-                ),
-                PopupMenuButton<String>(
-                  icon: const Icon(Icons.more_vert),
-                  onSelected: (value) => _handleMenuSelection(value, key, context),
-                  itemBuilder: (BuildContext context) => [
-                    const PopupMenuItem(
-                      value: 'edit',
-                      child: Text('Edit Client'),
-                    ),
-                    const PopupMenuItem(
-                      value: 'message',
-                      child: Text('Send Message'),
-                    ),
-                    const PopupMenuItem(
-                      value: 'delete',
-                      child: Text('Remove Client'),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Text(
-              lastSession,
-              style: TextStyle(
-                color: Colors.grey.shade600,
-                fontSize: 14,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                Expanded(
-                  child: LinearProgressIndicator(
-                    value: progress,
-                    backgroundColor: Colors.grey.shade200,
-                    valueColor: AlwaysStoppedAnimation<Color>(Colors.green.shade700),
-                    minHeight: 8,
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  '${(progress * 100).round()}%',
-                  style: TextStyle(
-                    color: Colors.green.shade700,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: () => _viewClientDetails(context, name),
-                    icon: const Icon(Icons.visibility),
-                    label: const Text('View'),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: Colors.green.shade700,
-                      side: BorderSide(color: Colors.green.shade700),
-                      padding: const EdgeInsets.symmetric(vertical: 8),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: ElevatedButton.icon(
-                    onPressed: () => _assignWorkout(context, key, name),
-                    icon: const Icon(Icons.fitness_center),
-                    label: const Text('Assign'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.green.shade700,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 8),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  void _handleMenuSelection(String value, String key, BuildContext context) {
-    switch (value) {
-      case 'edit':
-        _editClient(context, key);
-        break;
-      case 'message':
-        _sendMessage(context, key);
-        break;
-      case 'delete':
-        _showDeleteConfirmation(context, key);
-        break;
+      if (trainerSnapshot.exists) {
+        final trainerData = (trainerSnapshot.value as Map).entries.first;
+        _trainerId = trainerData.key;
+        _setupTraineesListener();
+      } else {
+        setState(() => _isLoading = false);
+      }
+    } catch (e) {
+      print('Error initializing trainer data: $e');
+      setState(() => _isLoading = false);
     }
+  }
+
+  Future<void> _setupTraineesListener() async {
+    // Cancel existing subscription if any
+    _traineesSubscription?.cancel();
+
+    setState(() => _isLoading = true);
+
+    // Listen to trainees node
+    _traineesSubscription = _database
+        .child('users/trainees')
+        .onValue
+        .listen((DatabaseEvent event) {
+      if (!event.snapshot.exists || event.snapshot.value == null) {
+        setState(() {
+          _trainees = [];
+          _isLoading = false;
+        });
+        return;
+      }
+
+      try {
+        final traineesData = event.snapshot.value as Map;
+        final List<Map<String, dynamic>> loadedTrainees = [];
+
+        traineesData.forEach((key, value) {
+          if (value is Map && value['trainerId'] == _trainerId) {
+            final traineeMap = Map<String, dynamic>.from(value);
+            
+            // Calculate progress
+            double progress = 0.0;
+            if (traineeMap['progress'] is Map && 
+                traineeMap['progress']['workouts'] is Map) {
+              final workouts = traineeMap['progress']['workouts'];
+              final completed = workouts['completed'] ?? 0;
+              final total = workouts['total'] ?? 0;
+              progress = total > 0 ? completed / total : 0.0;
+            }
+
+            // Format last session date
+            String lastSession = 'Never';
+            if (traineeMap['lastSession'] != null) {
+              try {
+                final timestamp = traineeMap['lastSession'] as int;
+                final date = DateTime.fromMillisecondsSinceEpoch(timestamp);
+                final now = DateTime.now();
+                final difference = now.difference(date);
+
+                if (difference.inDays == 0) {
+                  lastSession = 'Today';
+                } else if (difference.inDays == 1) {
+                  lastSession = 'Yesterday';
+                } else if (difference.inDays < 7) {
+                  lastSession = '${difference.inDays} days ago';
+                } else {
+                  lastSession = '${difference.inDays ~/ 7} weeks ago';
+                }
+              } catch (e) {
+                print('Error formatting last session: $e');
+              }
+            }
+
+            loadedTrainees.add({
+              'key': key,
+              'name': traineeMap['name'] ?? 'No Name',
+              'email': traineeMap['email'] ?? 'No Email',
+              'goal': traineeMap['progress']?['goals']?['primary'] ?? 'No Goal Set',
+              'progress': progress,
+              'lastSession': lastSession,
+              'assignedWorkout': traineeMap['workoutPlans'] is Map && 
+                               traineeMap['workoutPlans'].isNotEmpty ? 
+                               traineeMap['workoutPlans'].keys.first : null,
+              'gender': traineeMap['gender'] ?? 'Not specified',
+              'phone': traineeMap['phone'] ?? 'Not provided',
+              'weight': traineeMap['progress']?['weight']?['current'],
+              'height': traineeMap['height'],
+              'age': traineeMap['age'],
+            });
+          }
+        });
+
+        setState(() {
+          _trainees = loadedTrainees;
+          _isLoading = false;
+        });
+      } catch (e) {
+        print('Error processing trainees data: $e');
+        setState(() {
+          _trainees = [];
+          _isLoading = false;
+        });
+      }
+    }, onError: (error) {
+      print('Error in trainees stream: $error');
+      setState(() {
+        _trainees = [];
+        _isLoading = false;
+      });
+    });
+  }
+
+  void _filterTrainees(String query) {
+    if (query.isEmpty) {
+      _setupTraineesListener();
+      return;
+    }
+
+    setState(() {
+      _trainees = _trainees.where((trainee) {
+        final name = trainee['name'].toString().toLowerCase();
+        final email = trainee['email'].toString().toLowerCase();
+        final goal = trainee['goal'].toString().toLowerCase();
+        final searchLower = query.toLowerCase();
+
+        return name.contains(searchLower) || 
+               email.contains(searchLower) || 
+               goal.contains(searchLower);
+      }).toList();
+    });
   }
 
   void _showAddClientDialog(BuildContext context) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Add New Client'),
+        title: const Text('Add New Trainee'),
         content: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -329,7 +185,20 @@ class _ClientsPageState extends State<ClientsPage> {
                 controller: _nameController,
                 decoration: const InputDecoration(
                   labelText: 'Name',
-                  hintText: 'Enter client name',
+                  hintText: 'Enter trainee name',
+                  prefixIcon: Icon(Icons.person),
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: _emailController,
+                keyboardType: TextInputType.emailAddress,
+                decoration: const InputDecoration(
+                  labelText: 'Email',
+                  hintText: 'Enter trainee\'s email',
+                  prefixIcon: Icon(Icons.email),
+                  border: OutlineInputBorder(),
                 ),
               ),
               const SizedBox(height: 16),
@@ -337,15 +206,9 @@ class _ClientsPageState extends State<ClientsPage> {
                 controller: _goalController,
                 decoration: const InputDecoration(
                   labelText: 'Goal',
-                  hintText: 'Enter client\'s goal',
-                ),
-              ),
-              const SizedBox(height: 16),
-              TextField(
-                controller: _emailController,
-                decoration: const InputDecoration(
-                  labelText: 'Email',
-                  hintText: 'Enter client\'s email',
+                  hintText: 'Enter trainee\'s goal',
+                  prefixIcon: Icon(Icons.flag),
+                  border: OutlineInputBorder(),
                 ),
               ),
             ],
@@ -353,35 +216,137 @@ class _ClientsPageState extends State<ClientsPage> {
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () {
+              _nameController.clear();
+              _emailController.clear();
+              _goalController.clear();
+              Navigator.pop(context);
+            },
             child: const Text('Cancel'),
           ),
           ElevatedButton(
-            onPressed: () {
+            onPressed: () async {
               final name = _nameController.text.trim();
-              final goal = _goalController.text.trim();
               final email = _emailController.text.trim();
-              if (name.isEmpty || goal.isEmpty || email.isEmpty) return;
+              final goal = _goalController.text.trim();
 
-              setState(() {
-                _clients.add({
-                  'key': DateTime.now().millisecondsSinceEpoch.toString(),
+              // Validate inputs
+              if (name.isEmpty || email.isEmpty || goal.isEmpty) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Please fill in all fields'),
+                    backgroundColor: Colors.red,
+                  ),
+                );
+                return;
+              }
+
+              if (!email.contains('@') || !email.contains('.')) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Please enter a valid email address'),
+                    backgroundColor: Colors.red,
+                  ),
+                );
+                return;
+              }
+
+              setState(() => _isLoading = true);
+
+              try {
+                // Check if email already exists
+                final emailCheckSnapshot = await _database
+                    .child('users/trainees')
+                    .orderByChild('email')
+                    .equalTo(email)
+                    .get();
+
+                if (emailCheckSnapshot.exists) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('A trainee with this email already exists'),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                  return;
+                }
+
+                // Create new trainee in database
+                final newTraineeRef = _database.child('users/trainees').push();
+                await newTraineeRef.set({
                   'name': name,
-                  'goal': goal,
-                  'lastSession': 'Last session: Never',
-                  'progress': 0.0,
                   'email': email,
-                  'assignedWorkout': null,
+                  'trainerId': _trainerId,
+                  'createdAt': ServerValue.timestamp,
+                  'lastSession': null,
+                  'progress': {
+                    'goals': {
+                      'primary': goal,
+                      'achieved': 0,
+                      'total': 0,
+                    },
+                    'workouts': {
+                      'completed': 0,
+                      'total': 0,
+                    },
+                    'weight': {
+                      'current': null,
+                      'goal': null,
+                      'history': {},
+                    },
+                  },
+                  'workoutPlans': {},
+                  'status': 'active',
+                  'notifications': {
+                    'enabled': true,
+                    'lastSent': null,
+                  },
+                  'measurements': {
+                    'height': null,
+                    'weight': null,
+                    'bmi': null,
+                    'lastUpdated': null,
+                  },
+                  'attendance': {
+                    'total': 0,
+                    'missed': 0,
+                    'history': {},
+                  },
                 });
-              });
 
-              _nameController.clear();
-              _goalController.clear();
-              _emailController.clear();
-              Navigator.pop(context);
+                // Clear form and close dialog
+                _nameController.clear();
+                _emailController.clear();
+                _goalController.clear();
+                
+                if (mounted) {
+                  Navigator.pop(context);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Trainee added successfully'),
+                      backgroundColor: Colors.green,
+                    ),
+                  );
+                }
+              } catch (e) {
+                print('Error adding trainee: $e');
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Error adding trainee: $e'),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                }
+              } finally {
+                if (mounted) {
+                  setState(() => _isLoading = false);
+                }
+              }
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.green.shade700,
+              foregroundColor: Colors.white,
             ),
             child: const Text('Add'),
           ),
@@ -390,7 +355,7 @@ class _ClientsPageState extends State<ClientsPage> {
     );
   }
 
-  void _assignWorkout(BuildContext context, String key, String clientName) {
+  Future<void> _assignWorkout(BuildContext context, String traineeKey, String traineeName) async {
     setState(() {
       _selectedWorkoutPlan = null;
     });
@@ -399,7 +364,7 @@ class _ClientsPageState extends State<ClientsPage> {
       context: context,
       builder: (context) => StatefulBuilder(
         builder: (context, setDialogState) => AlertDialog(
-          title: Text('Assign Workout to $clientName'),
+          title: Text('Assign Workout to $traineeName'),
           content: SizedBox(
             width: double.maxFinite,
             child: Column(
@@ -440,15 +405,9 @@ class _ClientsPageState extends State<ClientsPage> {
             ElevatedButton(
               onPressed: _selectedWorkoutPlan == null
                   ? null
-                  : () {
-                      setState(() {
-                        final idx = _clients.indexWhere((c) => c['key'] == key);
-                        if (idx != -1) {
-                          _clients[idx]['assignedWorkout'] = _selectedWorkoutPlan;
-                        }
-                      });
+                  : () async {
+                      await _assignWorkoutPlan(traineeKey, _selectedWorkoutPlan!);
                       Navigator.pop(context);
-                      _showAssignmentSuccess(context, clientName);
                     },
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.green.shade700,
@@ -512,15 +471,6 @@ class _ClientsPageState extends State<ClientsPage> {
             },
           ),
         ),
-      ),
-    );
-  }
-
-  void _showAssignmentSuccess(BuildContext context, String clientName) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Workout plan assigned to $clientName successfully'),
-        backgroundColor: Colors.green.shade700,
       ),
     );
   }
@@ -737,5 +687,321 @@ class _ClientsPageState extends State<ClientsPage> {
         ],
       ),
     );
+  }
+
+  @override
+  void dispose() {
+    _traineesSubscription?.cancel();
+    _searchController.dispose();
+    _nameController.dispose();
+    _goalController.dispose();
+    _emailController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                'My Trainees',
+                style: TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                ),
+              ),
+              IconButton(
+                icon: const Icon(Icons.add_circle, color: Colors.white),
+                onPressed: () {
+                  _showAddClientDialog(context);
+                },
+              ),
+            ],
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: TextField(
+            controller: _searchController,
+            decoration: InputDecoration(
+              hintText: 'Search trainees...',
+              hintStyle: TextStyle(color: Colors.white.withOpacity(0.7)),
+              prefixIcon: Icon(Icons.search, color: Colors.white.withOpacity(0.7)),
+              filled: true,
+              fillColor: Colors.white.withOpacity(0.2),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide.none,
+              ),
+              contentPadding: const EdgeInsets.symmetric(vertical: 0),
+            ),
+            style: const TextStyle(color: Colors.white),
+            onChanged: _filterTrainees,
+          ),
+        ),
+        const SizedBox(height: 16),
+        Expanded(
+          child: Container(
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.only(
+                topLeft: Radius.circular(30),
+                topRight: Radius.circular(30),
+              ),
+            ),
+            child: _isLoading
+                ? const Center(child: CircularProgressIndicator())
+                : _trainees.isEmpty
+                    ? Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.person_outline,
+                              size: 64,
+                              color: Colors.grey.shade400,
+                            ),
+                            const SizedBox(height: 16),
+                            Text(
+                              'No trainees found',
+                              style: TextStyle(
+                                fontSize: 18,
+                                color: Colors.grey.shade600,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              'Add trainees to get started',
+                              style: TextStyle(
+                                fontSize: 14,
+                                color: Colors.grey.shade500,
+                              ),
+                            ),
+                          ],
+                        ),
+                      )
+                    : RefreshIndicator(
+                        onRefresh: () async {
+                          await _setupTraineesListener();
+                        },
+                        child: ListView.builder(
+                          padding: const EdgeInsets.all(16),
+                          itemCount: _trainees.length,
+                          itemBuilder: (context, index) {
+                            final trainee = _trainees[index];
+                            return _buildClientCard(
+                              trainee['key'],
+                              trainee['name'],
+                              trainee['goal'],
+                              trainee['lastSession'],
+                              trainee['progress'],
+                              trainee['assignedWorkout'],
+                              context,
+                            );
+                          },
+                        ),
+                      ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildClientCard(
+    String key,
+    String name,
+    String goal,
+    String lastSession,
+    double progress,
+    String? assignedWorkout,
+    BuildContext context,
+  ) {
+    return Card(
+      margin: const EdgeInsets.only(bottom: 16),
+      elevation: 2,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                CircleAvatar(
+                  backgroundColor: Colors.green.shade100,
+                  child: Text(
+                    name.isNotEmpty ? name[0] : '?',
+                    style: TextStyle(
+                      color: Colors.green.shade700,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        name,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                        ),
+                      ),
+                      Text(
+                        goal,
+                        style: TextStyle(
+                          color: Colors.grey.shade700,
+                          fontSize: 14,
+                        ),
+                      ),
+                      if (assignedWorkout != null)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 8.0),
+                          child: Text(
+                            'Assigned Workout: $assignedWorkout',
+                            style: TextStyle(
+                              color: Colors.green.shade700,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+                PopupMenuButton<String>(
+                  icon: const Icon(Icons.more_vert),
+                  onSelected: (value) => _handleMenuSelection(value, key, context),
+                  itemBuilder: (BuildContext context) => [
+                    const PopupMenuItem(
+                      value: 'edit',
+                      child: Text('Edit Client'),
+                    ),
+                    const PopupMenuItem(
+                      value: 'message',
+                      child: Text('Send Message'),
+                    ),
+                    const PopupMenuItem(
+                      value: 'delete',
+                      child: Text('Remove Client'),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Text(
+              lastSession,
+              style: TextStyle(
+                color: Colors.grey.shade600,
+                fontSize: 14,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Expanded(
+                  child: LinearProgressIndicator(
+                    value: progress,
+                    backgroundColor: Colors.grey.shade200,
+                    valueColor: AlwaysStoppedAnimation<Color>(Colors.green.shade700),
+                    minHeight: 8,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  '${(progress * 100).round()}%',
+                  style: TextStyle(
+                    color: Colors.green.shade700,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: () => _viewClientDetails(context, name),
+                    icon: const Icon(Icons.visibility),
+                    label: const Text('View'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: Colors.green.shade700,
+                      side: BorderSide(color: Colors.green.shade700),
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: () => _assignWorkout(context, key, name),
+                    icon: const Icon(Icons.fitness_center),
+                    label: const Text('Assign'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.green.shade700,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _handleMenuSelection(String value, String key, BuildContext context) {
+    switch (value) {
+      case 'edit':
+        _editClient(context, key);
+        break;
+      case 'message':
+        _sendMessage(context, key);
+        break;
+      case 'delete':
+        _showDeleteConfirmation(context, key);
+        break;
+    }
+  }
+
+  Future<void> _assignWorkoutPlan(String traineeKey, String workoutPlan) async {
+    try {
+      await _database.child('users/trainees/$traineeKey/workoutPlans').update({
+        workoutPlan: {
+          'assignedAt': ServerValue.timestamp,
+          'status': 'active',
+          'progress': 0,
+          'totalSessions': 12, // Example value
+        }
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Workout plan assigned successfully'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error assigning workout plan: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
   }
 } 
