@@ -22,6 +22,7 @@ class _RegisterScreenState extends State<RegisterScreen> with SingleTickerProvid
   bool _obscureConfirmPassword = true;
   bool _isLoading = false;
   List<String> _specializations = [];
+  String _selectedGender = 'Male'; // Default gender
 
   final List<String> _availableSpecializations = [
     'Weight Loss',
@@ -63,6 +64,7 @@ class _RegisterScreenState extends State<RegisterScreen> with SingleTickerProvid
             email: _emailController.text,
             password: _passwordController.text,
             phone: _phoneController.text,
+            gender: _selectedGender,
           );
           break;
         case 1: // Trainer
@@ -72,6 +74,7 @@ class _RegisterScreenState extends State<RegisterScreen> with SingleTickerProvid
             password: _passwordController.text,
             phone: _phoneController.text,
             specializations: _specializations,
+            gender: _selectedGender,
           );
           break;
         case 2: // Trainee
@@ -80,6 +83,7 @@ class _RegisterScreenState extends State<RegisterScreen> with SingleTickerProvid
             email: _emailController.text,
             password: _passwordController.text,
             phone: _phoneController.text,
+            gender: _selectedGender,
           );
           break;
       }
@@ -211,6 +215,31 @@ class _RegisterScreenState extends State<RegisterScreen> with SingleTickerProvid
               label: 'Phone Number',
               icon: Icons.phone,
               keyboardType: TextInputType.phone,
+            ),
+            const SizedBox(height: 20),
+            // Gender Selection
+            DropdownButtonFormField<String>(
+              value: _selectedGender,
+              decoration: InputDecoration(
+                labelText: 'Gender',
+                prefixIcon: const Icon(Icons.person_outline),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              items: ['Male', 'Female', 'Other'].map((String gender) {
+                return DropdownMenuItem<String>(
+                  value: gender,
+                  child: Text(gender),
+                );
+              }).toList(),
+              onChanged: (String? newValue) {
+                if (newValue != null) {
+                  setState(() {
+                    _selectedGender = newValue;
+                  });
+                }
+              },
             ),
             const SizedBox(height: 20),
             _buildPasswordField(

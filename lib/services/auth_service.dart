@@ -116,6 +116,7 @@ class AuthService {
     required String email,
     required String password,
     required String phone,
+    required String gender,
     List<String>? specializations,
   }) async {
     try {
@@ -132,6 +133,7 @@ class AuthService {
         'email': email,
         'password': password,
         'phone': phone,
+        'gender': gender,
         'userType': 'trainer',
         'specializations': specializations ?? [],
         'certifications': [],
@@ -172,6 +174,7 @@ class AuthService {
     required String email,
     required String password,
     required String phone,
+    required String gender,
   }) async {
     try {
       // Check if email exists
@@ -187,6 +190,7 @@ class AuthService {
         'email': email,
         'password': password,
         'phone': phone,
+        'gender': gender,
         'userType': 'trainee',
         'createdAt': ServerValue.timestamp,
         'lastLogin': ServerValue.timestamp,
@@ -234,6 +238,7 @@ class AuthService {
     required String email,
     required String password,
     required String phone,
+    required String gender,
   }) async {
     try {
       // Check if email exists
@@ -249,6 +254,7 @@ class AuthService {
         'email': email,
         'password': password,
         'phone': phone,
+        'gender': gender,
         'userType': 'member',
         'createdAt': ServerValue.timestamp,
         'progress': {

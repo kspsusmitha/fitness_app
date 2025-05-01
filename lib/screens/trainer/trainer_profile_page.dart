@@ -20,6 +20,7 @@ class _TrainerProfilePageState extends State<TrainerProfilePage> {
   final TextEditingController _ageController = TextEditingController();
   final TextEditingController _heightController = TextEditingController();
   final TextEditingController _weightController = TextEditingController();
+  String _selectedGender = 'Male';
 
   @override
   void initState() {
@@ -46,6 +47,7 @@ class _TrainerProfilePageState extends State<TrainerProfilePage> {
         _ageController.text = _trainerData!['age']?.toString() ?? '';
         _heightController.text = _trainerData!['height']?.toString() ?? '';
         _weightController.text = _trainerData!['weight']?.toString() ?? '';
+        _selectedGender = _trainerData!['gender'] ?? 'Male';
         _isLoading = false;
       });
     } else {
@@ -72,25 +74,47 @@ class _TrainerProfilePageState extends State<TrainerProfilePage> {
                 controller: _nameController,
                 decoration: const InputDecoration(labelText: 'Name'),
               ),
+              const SizedBox(height: 16),
               TextField(
                 controller: _phoneController,
                 decoration: const InputDecoration(labelText: 'Phone'),
                 keyboardType: TextInputType.phone,
               ),
+              const SizedBox(height: 16),
               TextField(
                 controller: _ageController,
                 decoration: const InputDecoration(labelText: 'Age'),
                 keyboardType: TextInputType.number,
               ),
+              const SizedBox(height: 16),
               TextField(
                 controller: _heightController,
                 decoration: const InputDecoration(labelText: 'Height (cm)'),
                 keyboardType: TextInputType.number,
               ),
+              const SizedBox(height: 16),
               TextField(
                 controller: _weightController,
                 decoration: const InputDecoration(labelText: 'Weight (kg)'),
                 keyboardType: TextInputType.number,
+              ),
+              const SizedBox(height: 16),
+              DropdownButtonFormField<String>(
+                value: _selectedGender,
+                decoration: const InputDecoration(labelText: 'Gender'),
+                items: ['Male', 'Female', 'Other'].map((String gender) {
+                  return DropdownMenuItem<String>(
+                    value: gender,
+                    child: Text(gender),
+                  );
+                }).toList(),
+                onChanged: (String? newValue) {
+                  if (newValue != null) {
+                    setState(() {
+                      _selectedGender = newValue;
+                    });
+                  }
+                },
               ),
             ],
           ),
@@ -121,6 +145,7 @@ class _TrainerProfilePageState extends State<TrainerProfilePage> {
       'age': _ageController.text,
       'height': _heightController.text,
       'weight': _weightController.text,
+      'gender': _selectedGender,
     });
     await _fetchTrainerData();
     if (mounted) {
@@ -144,17 +169,22 @@ class _TrainerProfilePageState extends State<TrainerProfilePage> {
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
-      return const Center(child: CircularProgressIndicator());
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      );
     }
     if (_trainerData == null) {
-      return const Center(child: Text('No trainer data found.'));
+      return const Scaffold(
+        body: Center(child: Text('No trainer data found.')),
+      );
     }
 
     final missing = _isMissing(_trainerData!['name']) ||
         _isMissing(_trainerData!['phone']) ||
         _isMissing(_trainerData!['age']?.toString()) ||
         _isMissing(_trainerData!['height']?.toString()) ||
-        _isMissing(_trainerData!['weight']?.toString());
+        _isMissing(_trainerData!['weight']?.toString()) ||
+        _isMissing(_trainerData!['gender']);
 
     return Scaffold(
       appBar: AppBar(
@@ -190,6 +220,37 @@ class _TrainerProfilePageState extends State<TrainerProfilePage> {
             _buildInfoCard('Age', _trainerData!['age']?.toString()),
             _buildInfoCard('Height (cm)', _trainerData!['height']?.toString()),
             _buildInfoCard('Weight (kg)', _trainerData!['weight']?.toString()),
+            _buildInfoCard('Gender', _trainerData!['gender']),
+            if (_trainerData!['specializations'] != null && (_trainerData!['specializations'] as List).isNotEmpty) ...[
+              const SizedBox(height: 16),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 24.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Specializations',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: (_trainerData!['specializations'] as List)
+                          .map<Widget>((spec) => Chip(
+                                label: Text(spec.toString()),
+                                backgroundColor: Colors.green.shade100,
+                                labelStyle: TextStyle(color: Colors.green.shade900),
+                              ))
+                          .toList(),
+                    ),
+                  ],
+                ),
+              ),
+            ],
             const SizedBox(height: 24),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 24.0),
@@ -261,6 +322,8 @@ class _TrainerProfilePageState extends State<TrainerProfilePage> {
         return Icons.height;
       case 'Weight (kg)':
         return Icons.monitor_weight;
+      case 'Gender':
+        return Icons.person_outline;
       default:
         return Icons.info;
     }
