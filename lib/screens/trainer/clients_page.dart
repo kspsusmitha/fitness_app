@@ -81,36 +81,62 @@ class _ClientsPageState extends State<ClientsPage> {
           if (value is Map && value['trainerId'] == _trainerId) {
             final traineeMap = Map<String, dynamic>.from(value);
             
-            // Calculate progress
+            // Calculate progress from workout plans
             double progress = 0.0;
-            if (traineeMap['progress'] is Map && 
-                traineeMap['progress']['workouts'] is Map) {
-              final workouts = traineeMap['progress']['workouts'];
-              final completed = workouts['completed'] ?? 0;
-              final total = workouts['total'] ?? 0;
-              progress = total > 0 ? completed / total : 0.0;
-            }
-
-            // Format last session date
+            int totalWorkouts = 0;
+            int completedWorkouts = 0;
             String lastSession = 'Never';
-            if (traineeMap['lastSession'] != null) {
-              try {
-                final timestamp = traineeMap['lastSession'] as int;
-                final date = DateTime.fromMillisecondsSinceEpoch(timestamp);
-                final now = DateTime.now();
-                final difference = now.difference(date);
+            String lastCompletedExercise = '';
+            String workoutStatus = 'No active workouts';
 
-                if (difference.inDays == 0) {
-                  lastSession = 'Today';
-                } else if (difference.inDays == 1) {
-                  lastSession = 'Yesterday';
-                } else if (difference.inDays < 7) {
-                  lastSession = '${difference.inDays} days ago';
-                } else {
-                  lastSession = '${difference.inDays ~/ 7} weeks ago';
+            if (traineeMap['workoutPlans'] is Map) {
+              final workoutPlans = traineeMap['workoutPlans'] as Map;
+              workoutPlans.forEach((workoutKey, workoutData) {
+                if (workoutData is Map) {
+                  final workoutProgress = workoutData['progress'] ?? 0.0;
+                  final lastUpdated = workoutData['lastUpdated'] as int?;
+                  final lastExercise = workoutData['lastCompletedExercise'] as Map?;
+                  final status = workoutData['status'] as String?;
+                  
+                  progress += workoutProgress;
+                  totalWorkouts++;
+
+                  if (workoutProgress == 1.0) {
+                    completedWorkouts++;
+                  }
+
+                  if (lastUpdated != null) {
+                    final date = DateTime.fromMillisecondsSinceEpoch(lastUpdated);
+                    final now = DateTime.now();
+                    final difference = now.difference(date);
+
+                    if (lastSession == 'Never' || difference.inDays < 7) {
+                      if (difference.inDays == 0) {
+                        lastSession = 'Today';
+                      } else if (difference.inDays == 1) {
+                        lastSession = 'Yesterday';
+                      } else if (difference.inDays < 7) {
+                        lastSession = '${difference.inDays} days ago';
+                      } else {
+                        lastSession = '${difference.inDays ~/ 7} weeks ago';
+                      }
+
+                      if (lastExercise != null) {
+                        lastCompletedExercise = lastExercise['name'] as String;
+                      }
+                    }
+                  }
+
+                  if (status == 'active') {
+                    workoutStatus = 'Active workout in progress';
+                  } else if (status == 'completed') {
+                    workoutStatus = 'Workout completed';
+                  }
                 }
-              } catch (e) {
-                print('Error formatting last session: $e');
+              });
+
+              if (totalWorkouts > 0) {
+                progress = progress / totalWorkouts;
               }
             }
 
@@ -121,6 +147,10 @@ class _ClientsPageState extends State<ClientsPage> {
               'goal': traineeMap['progress']?['goals']?['primary'] ?? 'No Goal Set',
               'progress': progress,
               'lastSession': lastSession,
+              'lastExercise': lastCompletedExercise,
+              'completedWorkouts': completedWorkouts,
+              'totalWorkouts': totalWorkouts,
+              'workoutStatus': workoutStatus,
               'assignedWorkout': traineeMap['workoutPlans'] is Map && 
                                traineeMap['workoutPlans'].isNotEmpty ? 
                                traineeMap['workoutPlans'].keys.first : null,
@@ -905,6 +935,12 @@ class _ClientsPageState extends State<ClientsPage> {
     String? assignedWorkout,
     BuildContext context,
   ) {
+    final trainee = _trainees.firstWhere((t) => t['key'] == key);
+    final lastExercise = trainee['lastExercise'] as String?;
+    final completedWorkouts = trainee['completedWorkouts'] as int;
+    final totalWorkouts = trainee['totalWorkouts'] as int;
+    final workoutStatus = trainee['workoutStatus'] as String;
+
     return Card(
       margin: const EdgeInsets.only(bottom: 16),
       elevation: 2,
@@ -982,6 +1018,58 @@ class _ClientsPageState extends State<ClientsPage> {
               ],
             ),
             const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: workoutStatus == 'Workout completed' 
+                    ? Colors.green.shade100 
+                    : workoutStatus == 'Active workout in progress'
+                        ? Colors.blue.shade100
+                        : Colors.grey.shade100,
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    workoutStatus == 'Workout completed'
+                        ? Icons.check_circle
+                        : workoutStatus == 'Active workout in progress'
+                            ? Icons.fitness_center
+                            : Icons.info_outline,
+                    color: workoutStatus == 'Workout completed'
+                        ? Colors.green.shade700
+                        : workoutStatus == 'Active workout in progress'
+                            ? Colors.blue.shade700
+                            : Colors.grey.shade700,
+                    size: 16,
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    workoutStatus,
+                    style: TextStyle(
+                      color: workoutStatus == 'Workout completed'
+                          ? Colors.green.shade700
+                          : workoutStatus == 'Active workout in progress'
+                              ? Colors.blue.shade700
+                              : Colors.grey.shade700,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 8),
+            if (lastExercise != null && lastExercise.isNotEmpty)
+              Text(
+                'Last completed: $lastExercise',
+                style: TextStyle(
+                  color: Colors.green.shade700,
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            const SizedBox(height: 4),
             Text(
               lastSession,
               style: TextStyle(
@@ -1010,6 +1098,14 @@ class _ClientsPageState extends State<ClientsPage> {
                   ),
                 ),
               ],
+            ),
+            const SizedBox(height: 4),
+            Text(
+              '$completedWorkouts of $totalWorkouts workouts completed',
+              style: TextStyle(
+                color: Colors.grey.shade600,
+                fontSize: 12,
+              ),
             ),
             const SizedBox(height: 16),
             Row(

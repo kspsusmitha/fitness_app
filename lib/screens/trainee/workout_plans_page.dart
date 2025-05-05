@@ -68,7 +68,7 @@ class _WorkoutPlansPageState extends State<WorkoutPlansPage> {
               Map<String, bool>.from(
                 (workoutData as Map).map((exerciseKey, value) => MapEntry(
                   exerciseKey,
-                  value == true,
+                  value is Map ? value['completed'] == true : value == true,
                 )),
               ),
             )),
@@ -84,11 +84,17 @@ class _WorkoutPlansPageState extends State<WorkoutPlansPage> {
     if (_traineeId == null) return;
 
     try {
+      final timestamp = DateTime.now().millisecondsSinceEpoch;
+
       // Update completed exercises
       await _database
           .child('users/trainees/$_traineeId/completedExercises/$workoutKey')
           .update({
-        exercise: true,
+        exercise: {
+          'completed': true,
+          'timestamp': timestamp,
+          'exerciseName': exercise,
+        },
       });
 
       // Update workout progress
@@ -97,17 +103,107 @@ class _WorkoutPlansPageState extends State<WorkoutPlansPage> {
       final completedCount = _completedExercises[workoutKey]?.values.where((v) => v).length ?? 0;
       final newProgress = (completedCount + 1) / totalExercises;
 
+      // Update workout plan progress
       await _database
           .child('users/trainees/$_traineeId/workoutPlans/$workoutKey')
           .update({
         'progress': newProgress,
         'completedSessions': completedCount + 1,
+        'lastUpdated': timestamp,
+        'lastCompletedExercise': {
+          'name': exercise,
+          'timestamp': timestamp,
+        },
+        'status': newProgress == 1.0 ? 'completed' : 'active',
       });
 
-      // Reload data
+      // Update overall progress
+      await _database
+          .child('users/trainees/$_traineeId/progress/workouts')
+          .update({
+        'completed': completedCount + 1,
+        'total': totalExercises,
+        'lastUpdated': timestamp,
+        'lastSession': timestamp,
+        'lastExercise': exercise,
+      });
+
+      // Show completion animation
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                Icon(Icons.check_circle, color: Colors.white),
+                SizedBox(width: 8),
+                Text('$exercise completed successfully!'),
+              ],
+            ),
+            backgroundColor: Colors.green.shade700,
+            behavior: SnackBarBehavior.floating,
+            duration: Duration(seconds: 2),
+          ),
+        );
+
+        // Show completion animation
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (context) => AlertDialog(
+            backgroundColor: Colors.transparent,
+            elevation: 0,
+            content: Container(
+              width: 100,
+              height: 100,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                shape: BoxShape.circle,
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.green.withOpacity(0.3),
+                    blurRadius: 10,
+                    spreadRadius: 2,
+                  ),
+                ],
+              ),
+              child: Center(
+                child: Icon(
+                  Icons.check_circle,
+                  color: Colors.green.shade700,
+                  size: 60,
+                ),
+              ),
+            ),
+          ),
+        );
+
+        // Dismiss the dialog after animation
+        Future.delayed(Duration(milliseconds: 1500), () {
+          if (mounted) {
+            Navigator.of(context).pop();
+          }
+        });
+      }
+
+      // Reload completed exercises
       await _loadCompletedExercises();
     } catch (e) {
       print('Error marking exercise as completed: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                Icon(Icons.error, color: Colors.white),
+                SizedBox(width: 8),
+                Text('Error marking exercise as completed: $e'),
+              ],
+            ),
+            backgroundColor: Colors.red.shade700,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
     }
   }
 
@@ -250,8 +346,19 @@ class _WorkoutPlansPageState extends State<WorkoutPlansPage> {
     final isCompleted = _completedExercises[workoutKey]?[name] ?? false;
 
     return ListTile(
-      title: Text(name),
-      subtitle: Text(sets),
+      title: Text(
+        name,
+        style: TextStyle(
+          fontWeight: isCompleted ? FontWeight.bold : FontWeight.normal,
+          color: isCompleted ? Colors.green.shade700 : null,
+        ),
+      ),
+      subtitle: Text(
+        sets,
+        style: TextStyle(
+          color: isCompleted ? Colors.green.shade600 : Colors.grey.shade600,
+        ),
+      ),
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
