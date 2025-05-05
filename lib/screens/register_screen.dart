@@ -49,8 +49,102 @@ class _RegisterScreenState extends State<RegisterScreen> with SingleTickerProvid
     super.dispose();
   }
 
+  // Add validation methods
+  String? _validateName(String? value) {
+    if (value == null || value.isEmpty) {
+      return 'Please enter your name';
+    }
+    if (value.length < 2) {
+      return 'Name must be at least 2 characters';
+    }
+    // Check for valid name characters
+    if (!RegExp(r'^[a-zA-Z\s]+$').hasMatch(value)) {
+      return 'Name can only contain letters and spaces';
+    }
+    return null;
+  }
+
+  String? _validateEmail(String? value) {
+    if (value == null || value.isEmpty) {
+      return 'Please enter your email';
+    }
+    // Enhanced email validation
+    final emailRegex = RegExp(r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$');
+    if (!emailRegex.hasMatch(value)) {
+      return 'Please enter a valid email address';
+    }
+    return null;
+  }
+
+  String? _validatePhone(String? value) {
+    if (value == null || value.isEmpty) {
+      return 'Please enter your phone number';
+    }
+    // Check for valid phone number format (adjust regex based on your requirements)
+    if (!RegExp(r'^\+?[0-9]{10,}$').hasMatch(value)) {
+      return 'Please enter a valid phone number';
+    }
+    return null;
+  }
+
+  String? _validatePassword(String? value) {
+    if (value == null || value.isEmpty) {
+      return 'Please enter a password';
+    }
+    if (value.length < 8) {
+      return 'Password must be at least 8 characters';
+    }
+    // Check for at least one uppercase letter
+    if (!value.contains(RegExp(r'[A-Z]'))) {
+      return 'Password must contain at least one uppercase letter';
+    }
+    // Check for at least one lowercase letter
+    if (!value.contains(RegExp(r'[a-z]'))) {
+      return 'Password must contain at least one lowercase letter';
+    }
+    // Check for at least one number
+    if (!value.contains(RegExp(r'[0-9]'))) {
+      return 'Password must contain at least one number';
+    }
+    // Check for at least one special character
+    if (!value.contains(RegExp(r'[!@#$%^&*(),.?":{}|<>]'))) {
+      return 'Password must contain at least one special character';
+    }
+    return null;
+  }
+
+  String? _validateConfirmPassword(String? value) {
+    if (value == null || value.isEmpty) {
+      return 'Please confirm your password';
+    }
+    if (value != _passwordController.text) {
+      return 'Passwords do not match';
+    }
+    return null;
+  }
+
+  String? _validateSpecializations(String userType) {
+    if (userType == 'trainer' && _specializations.isEmpty) {
+      return 'Please select at least one specialization';
+    }
+    return null;
+  }
+
   Future<void> _handleRegistration() async {
-    if (!_formKey.currentState!.validate()) return;
+    final form = _formKey.currentState;
+    if (form == null || !form.validate()) return;
+
+    // Additional validation for trainer specializations
+    final specializationError = _validateSpecializations(_tabController.index == 1 ? 'trainer' : 'member');
+    if (specializationError != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(specializationError),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
 
     setState(() => _isLoading = true);
 
@@ -60,29 +154,29 @@ class _RegisterScreenState extends State<RegisterScreen> with SingleTickerProvid
       switch (_tabController.index) {
         case 0: // Member
           result = await _authService.registerMember(
-            name: _nameController.text,
-            email: _emailController.text,
+            name: _nameController.text.trim(),
+            email: _emailController.text.trim(),
             password: _passwordController.text,
-            phone: _phoneController.text,
+            phone: _phoneController.text.trim(),
             gender: _selectedGender,
           );
           break;
         case 1: // Trainer
           result = await _authService.registerTrainer(
-            name: _nameController.text,
-            email: _emailController.text,
+            name: _nameController.text.trim(),
+            email: _emailController.text.trim(),
             password: _passwordController.text,
-            phone: _phoneController.text,
+            phone: _phoneController.text.trim(),
             specializations: _specializations,
             gender: _selectedGender,
           );
           break;
         case 2: // Trainee
           result = await _authService.registerTrainee(
-            name: _nameController.text,
-            email: _emailController.text,
+            name: _nameController.text.trim(),
+            email: _emailController.text.trim(),
             password: _passwordController.text,
-            phone: _phoneController.text,
+            phone: _phoneController.text.trim(),
             gender: _selectedGender,
           );
           break;
@@ -120,6 +214,8 @@ class _RegisterScreenState extends State<RegisterScreen> with SingleTickerProvid
       }
     } catch (e) {
       setState(() => _isLoading = false);
+      if (!mounted) return;
+      
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Error: $e'),
@@ -328,13 +424,22 @@ class _RegisterScreenState extends State<RegisterScreen> with SingleTickerProvid
         ),
       ),
       validator: (value) {
-        if (value == null || value.isEmpty) {
-          return 'Please enter $label';
+        switch (label) {
+          case 'Full Name':
+            return _validateName(value);
+          case 'Email':
+            return _validateEmail(value);
+          case 'Phone Number':
+            return _validatePhone(value);
+          default:
+            return value?.isEmpty ?? true ? 'Please enter $label' : null;
         }
-        if (label == 'Email' && !value.contains('@')) {
-          return 'Please enter a valid email';
+      },
+      onChanged: (value) {
+        // Validate on change for immediate feedback
+        if (_formKey.currentState != null) {
+          _formKey.currentState!.validate();
         }
-        return null;
       },
     );
   }
@@ -362,16 +467,17 @@ class _RegisterScreenState extends State<RegisterScreen> with SingleTickerProvid
         ),
       ),
       validator: (value) {
-        if (value == null || value.isEmpty) {
-          return 'Please enter $label';
+        if (label == 'Password') {
+          return _validatePassword(value);
+        } else {
+          return _validateConfirmPassword(value);
         }
-        if (value.length < 6) {
-          return 'Password must be at least 6 characters';
+      },
+      onChanged: (value) {
+        // Validate on change for immediate feedback
+        if (_formKey.currentState != null) {
+          _formKey.currentState!.validate();
         }
-        if (label == 'Confirm Password' && value != _passwordController.text) {
-          return 'Passwords do not match';
-        }
-        return null;
       },
     );
   }

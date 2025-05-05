@@ -263,6 +263,7 @@ class _ExerciseVideoPlayerState extends State<ExerciseVideoPlayer> {
   late VideoPlayerController _videoPlayerController;
   ChewieController? _chewieController;
   bool _isInitialized = false;
+  String? _error;
 
   @override
   void initState() {
@@ -271,31 +272,45 @@ class _ExerciseVideoPlayerState extends State<ExerciseVideoPlayer> {
   }
 
   Future<void> _initializeVideo() async {
-    _videoPlayerController = VideoPlayerController.network(widget.videoUrl);
-    await _videoPlayerController.initialize();
-    
-    _chewieController = ChewieController(
-      videoPlayerController: _videoPlayerController,
-      autoPlay: false,
-      looping: true,
-      aspectRatio: 16 / 9,
-      placeholder: Container(
-        color: Colors.grey[200],
-        child: const Center(
-          child: CircularProgressIndicator(),
+    try {
+      _videoPlayerController = VideoPlayerController.network(widget.videoUrl);
+      
+      await _videoPlayerController.initialize();
+      
+      _chewieController = ChewieController(
+        videoPlayerController: _videoPlayerController,
+        autoPlay: false,
+        looping: false,
+        aspectRatio: _videoPlayerController.value.aspectRatio,
+        errorBuilder: (context, errorMessage) {
+          return Center(
+            child: Text(
+              errorMessage,
+              style: const TextStyle(color: Colors.white),
+            ),
+          );
+        },
+        placeholder: Container(
+          color: Colors.black,
+          child: const Center(
+            child: CircularProgressIndicator(color: Colors.white),
+          ),
         ),
-      ),
-      materialProgressColors: ChewieProgressColors(
-        playedColor: Colors.blue,
-        handleColor: Colors.blue,
-        backgroundColor: Colors.grey.shade300,
-        bufferedColor: Colors.blue.shade100,
-      ),
-    );
+      );
 
-    setState(() {
-      _isInitialized = true;
-    });
+      if (mounted) {
+        setState(() {
+          _isInitialized = true;
+          _error = null;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _error = 'Error loading video: $e';
+        });
+      }
+    }
   }
 
   @override
@@ -307,39 +322,27 @@ class _ExerciseVideoPlayerState extends State<ExerciseVideoPlayer> {
 
   @override
   Widget build(BuildContext context) {
-    if (!_isInitialized) {
-      return const Center(
-        child: CircularProgressIndicator(),
+    if (_error != null) {
+      return Center(
+        child: Text(
+          _error!,
+          style: const TextStyle(color: Colors.red),
+        ),
       );
     }
 
-    return Stack(
-      alignment: Alignment.center,
-      children: [
-        Chewie(controller: _chewieController!),
-        Container(
-          decoration: BoxDecoration(
-            color: Colors.black.withOpacity(0.3),
-            shape: BoxShape.circle,
-          ),
-          child: IconButton(
-            icon: Icon(
-              _videoPlayerController.value.isPlaying
-                  ? Icons.pause
-                  : Icons.play_arrow,
-              color: Colors.white,
-              size: 50,
-            ),
-            onPressed: () {
-              if (_videoPlayerController.value.isPlaying) {
-                _chewieController?.pause();
-              } else {
-                _chewieController?.play();
-              }
-            },
-          ),
+    if (!_isInitialized) {
+      return Container(
+        color: Colors.black,
+        child: const Center(
+          child: CircularProgressIndicator(color: Colors.white),
         ),
-      ],
+      );
+    }
+
+    return AspectRatio(
+      aspectRatio: _videoPlayerController.value.aspectRatio,
+      child: Chewie(controller: _chewieController!),
     );
   }
 } 

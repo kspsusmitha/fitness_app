@@ -1,9 +1,121 @@
 import 'package:flutter/material.dart';
 import 'package:video_player/video_player.dart';
 import 'package:chewie/chewie.dart';
+import 'package:firebase_database/firebase_database.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:async';
 
-class WorkoutPlansPage extends StatelessWidget {
+class WorkoutPlansPage extends StatefulWidget {
   const WorkoutPlansPage({super.key});
+
+  @override
+  State<WorkoutPlansPage> createState() => _WorkoutPlansPageState();
+}
+
+class _WorkoutPlansPageState extends State<WorkoutPlansPage> {
+  final DatabaseReference _database = FirebaseDatabase.instance.ref();
+  List<Map<String, dynamic>> _workoutPlans = [];
+  bool _isLoading = true;
+  String? _traineeId;
+  StreamSubscription? _workoutPlansSubscription;
+
+  @override
+  void initState() {
+    super.initState();
+    _initializeTraineeData();
+  }
+
+  Future<void> _initializeTraineeData() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final email = prefs.getString('email') ?? '';
+      
+      // Get trainee data
+      final traineeSnapshot = await _database
+          .child('users/trainees')
+          .orderByChild('email')
+          .equalTo(email)
+          .get();
+
+      if (traineeSnapshot.exists) {
+        final traineeData = (traineeSnapshot.value as Map).entries.first;
+        _traineeId = traineeData.key;
+        _setupWorkoutPlansListener();
+      } else {
+        setState(() => _isLoading = false);
+      }
+    } catch (e) {
+      print('Error initializing trainee data: $e');
+      setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _setupWorkoutPlansListener() async {
+    // Cancel existing subscription if any
+    _workoutPlansSubscription?.cancel();
+
+    setState(() => _isLoading = true);
+
+    // Listen to workout plans node
+    _workoutPlansSubscription = _database
+        .child('users/trainees/$_traineeId/workoutPlans')
+        .onValue
+        .listen((DatabaseEvent event) {
+      if (!event.snapshot.exists || event.snapshot.value == null) {
+        setState(() {
+          _workoutPlans = [];
+          _isLoading = false;
+        });
+        return;
+      }
+
+      try {
+        final workoutPlansData = event.snapshot.value as Map;
+        final List<Map<String, dynamic>> loadedPlans = [];
+
+        workoutPlansData.forEach((key, value) {
+          if (value is Map) {
+            final planMap = Map<String, dynamic>.from(value);
+            loadedPlans.add({
+              'key': key,
+              'name': planMap['name'] ?? 'Unnamed Workout',
+              'description': planMap['description'] ?? '',
+              'duration': planMap['duration'] ?? 0,
+              'exercises': planMap['exercises'] ?? [],
+              'progress': planMap['progress'] ?? 0.0,
+              'completedSessions': planMap['completedSessions'] ?? 0,
+              'totalSessions': planMap['totalSessions'] ?? 0,
+              'assignedAt': planMap['assignedAt'],
+              'status': planMap['status'] ?? 'active',
+            });
+          }
+        });
+
+        setState(() {
+          _workoutPlans = loadedPlans;
+          _isLoading = false;
+        });
+      } catch (e) {
+        print('Error processing workout plans data: $e');
+        setState(() {
+          _workoutPlans = [];
+          _isLoading = false;
+        });
+      }
+    }, onError: (error) {
+      print('Error in workout plans stream: $error');
+      setState(() {
+        _workoutPlans = [];
+        _isLoading = false;
+      });
+    });
+  }
+
+  @override
+  void dispose() {
+    _workoutPlansSubscription?.cancel();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -21,25 +133,63 @@ class WorkoutPlansPage extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 20),
-          _buildExpandableWorkoutPlan(
-            'Weight Loss Program',
-            'Coach Michael',
-            '8 weeks',
-            0.3,
-            ['Cardio', 'HIIT', 'Strength'],
-            ['Monday', 'Wednesday', 'Friday'],
-          ),
+          if (_isLoading)
+            const Center(child: CircularProgressIndicator())
+          else if (_workoutPlans.isEmpty)
+            Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.fitness_center,
+                    size: 64,
+                    color: Colors.grey.shade400,
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    'No workout plans assigned yet',
+                    style: TextStyle(
+                      fontSize: 18,
+                      color: Colors.grey.shade600,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Your trainer will assign workouts soon',
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: Colors.grey.shade500,
+                    ),
+                  ),
+                ],
+              ),
+            )
+          else
+            ..._workoutPlans.map((plan) => _buildExpandableWorkoutPlan(
+                  plan['name'],
+                  plan['description'],
+                  '${plan['duration']} weeks',
+                  plan['progress'],
+                  plan['exercises'] ?? [],
+                  _getScheduleFromPlan(plan),
+                )),
         ],
       ),
     );
   }
 
+  List<String> _getScheduleFromPlan(Map<String, dynamic> plan) {
+    // This is a placeholder. You should implement the actual schedule logic
+    // based on your workout plan structure
+    return ['Monday', 'Wednesday', 'Friday'];
+  }
+
   Widget _buildExpandableWorkoutPlan(
     String title,
-    String trainer,
+    String description,
     String duration,
     double progress,
-    List<String> focus,
+    List<dynamic> exercises,
     List<String> schedule,
   ) {
     return Card(
@@ -53,7 +203,7 @@ class WorkoutPlansPage extends StatelessWidget {
           style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
         ),
         subtitle: Text(
-          trainer,
+          description,
           style: TextStyle(color: Colors.grey.shade600),
         ),
         children: [
@@ -90,73 +240,20 @@ class WorkoutPlansPage extends StatelessWidget {
                 Text('Training days: ${schedule.join(", ")}'),
                 const SizedBox(height: 16),
 
-                // Focus Areas
+                // Exercises Section
                 const Text(
-                  'Focus Areas',
+                  'Exercises',
                   style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
                 const SizedBox(height: 8),
-                Wrap(
-                  spacing: 8,
-                  children: focus.map((tag) => Chip(
-                    label: Text(tag),
-                    backgroundColor: Colors.orange.shade50,
-                  )).toList(),
-                ),
-                const SizedBox(height: 16),
-
-                // Workout Details Section
-                const Text(
-                  'Workout Details',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                _buildWorkoutDay(
-                  'Monday - Upper Body',
-                  [
-                    _buildExercise(
-                      'Push-ups',
+                ...exercises.map((exercise) => _buildExercise(
+                      exercise.toString(),
                       '3 sets x 12 reps',
-                      'https://example.com/pushup.mp4',
-                    ),
-                    _buildExercise(
-                      'Dumbbell Rows',
-                      '3 sets x 10 reps',
-                      'https://example.com/rows.mp4',
-                    ),
-                    _buildExercise(
-                      'Shoulder Press',
-                      '3 sets x 10 reps',
-                      'https://example.com/press.mp4',
-                    ),
-                  ],
-                ),
-                _buildWorkoutDay(
-                  'Wednesday - Lower Body',
-                  [
-                    _buildExercise(
-                      'Squats',
-                      '4 sets x 12 reps',
-                      'https://example.com/squats.mp4',
-                    ),
-                    _buildExercise(
-                      'Lunges',
-                      '3 sets x 10 reps each leg',
-                      'https://example.com/lunges.mp4',
-                    ),
-                    _buildExercise(
-                      'Calf Raises',
-                      '3 sets x 15 reps',
-                      'https://example.com/calfraises.mp4',
-                    ),
-                  ],
-                ),
+                      'https://example.com/${exercise.toLowerCase().replaceAll(' ', '_')}.mp4',
+                    )),
                 const SizedBox(height: 16),
 
                 // Instructions Section
@@ -176,16 +273,6 @@ class WorkoutPlansPage extends StatelessWidget {
             ),
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _buildWorkoutDay(String title, List<Widget> exercises) {
-    return Card(
-      margin: const EdgeInsets.symmetric(vertical: 8),
-      child: ExpansionTile(
-        title: Text(title),
-        children: exercises,
       ),
     );
   }

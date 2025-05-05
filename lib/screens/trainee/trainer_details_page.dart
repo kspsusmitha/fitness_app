@@ -1,7 +1,105 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_database/firebase_database.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:async';
 
-class TrainerDetailsPage extends StatelessWidget {
+class TrainerDetailsPage extends StatefulWidget {
   const TrainerDetailsPage({super.key});
+
+  @override
+  State<TrainerDetailsPage> createState() => _TrainerDetailsPageState();
+}
+
+class _TrainerDetailsPageState extends State<TrainerDetailsPage> {
+  final DatabaseReference _database = FirebaseDatabase.instance.ref();
+  Map<String, dynamic>? _trainerData;
+  bool _isLoading = true;
+  String? _traineeId;
+  StreamSubscription? _trainerSubscription;
+
+  @override
+  void initState() {
+    super.initState();
+    _initializeTraineeData();
+  }
+
+  Future<void> _initializeTraineeData() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final email = prefs.getString('email') ?? '';
+      
+      // Get trainee data
+      final traineeSnapshot = await _database
+          .child('users/trainees')
+          .orderByChild('email')
+          .equalTo(email)
+          .get();
+
+      if (traineeSnapshot.exists) {
+        final traineeData = (traineeSnapshot.value as Map).entries.first;
+        _traineeId = traineeData.key;
+        final trainerId = (traineeData.value as Map)['trainerId'];
+        
+        if (trainerId != null) {
+          _setupTrainerListener(trainerId);
+        } else {
+          setState(() => _isLoading = false);
+        }
+      } else {
+        setState(() => _isLoading = false);
+      }
+    } catch (e) {
+      print('Error initializing trainee data: $e');
+      setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _setupTrainerListener(String trainerId) async {
+    // Cancel existing subscription if any
+    _trainerSubscription?.cancel();
+
+    setState(() => _isLoading = true);
+
+    // Listen to trainer data
+    _trainerSubscription = _database
+        .child('users/trainers/$trainerId')
+        .onValue
+        .listen((DatabaseEvent event) {
+      if (!event.snapshot.exists || event.snapshot.value == null) {
+        setState(() {
+          _trainerData = null;
+          _isLoading = false;
+        });
+        return;
+      }
+
+      try {
+        final trainerData = Map<String, dynamic>.from(event.snapshot.value as Map);
+        setState(() {
+          _trainerData = trainerData;
+          _isLoading = false;
+        });
+      } catch (e) {
+        print('Error processing trainer data: $e');
+        setState(() {
+          _trainerData = null;
+          _isLoading = false;
+        });
+      }
+    }, onError: (error) {
+      print('Error in trainer stream: $error');
+      setState(() {
+        _trainerData = null;
+        _isLoading = false;
+      });
+    });
+  }
+
+  @override
+  void dispose() {
+    _trainerSubscription?.cancel();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -19,13 +117,58 @@ class TrainerDetailsPage extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 20),
-          _buildTrainerProfile(context),
+          if (_isLoading)
+            const Center(child: CircularProgressIndicator())
+          else if (_trainerData == null)
+            Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.person_outline,
+                    size: 64,
+                    color: Colors.grey.shade400,
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    'No trainer assigned yet',
+                    style: TextStyle(
+                      fontSize: 18,
+                      color: Colors.grey.shade600,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'You will be assigned a trainer soon',
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: Colors.grey.shade500,
+                    ),
+                  ),
+                ],
+              ),
+            )
+          else
+            _buildTrainerProfile(context),
         ],
       ),
     );
   }
 
   Widget _buildTrainerProfile(BuildContext context) {
+    // Access the trainer data directly from the root level
+    final name = _trainerData!['name'] ?? 'No Name';
+    final title = _trainerData!['title'] ?? 'Personal Trainer';
+    final bio = _trainerData!['bio'] ?? '';
+    final specializations = List<String>.from(_trainerData!['specializations'] ?? []);
+    final certifications = List<Map<String, dynamic>>.from(_trainerData!['certifications'] ?? []);
+    final availability = Map<String, dynamic>.from(_trainerData!['availability'] ?? {});
+    final contactInfo = {
+      'email': _trainerData!['email'] ?? '',
+      'phone': _trainerData!['phone'] ?? '',
+      'location': _trainerData!['location'] ?? '',
+    };
+
     return Card(
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
@@ -48,7 +191,7 @@ class TrainerDetailsPage extends StatelessWidget {
                   radius: 40,
                   backgroundColor: Colors.orange.shade100,
                   child: Text(
-                    'M',
+                    name[0],
                     style: TextStyle(
                       fontSize: 30,
                       fontWeight: FontWeight.bold,
@@ -61,22 +204,22 @@ class TrainerDetailsPage extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text(
-                        'Coach Michael',
-                        style: TextStyle(
+                      Text(
+                        name,
+                        style: const TextStyle(
                           fontSize: 20,
                           fontWeight: FontWeight.bold,
                         ),
                       ),
                       Text(
-                        'ID: TR12345',
+                        'ID: ${_trainerData!['id']}',
                         style: TextStyle(
                           color: Colors.grey.shade600,
                         ),
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        'Certified Personal Trainer',
+                        title,
                         style: TextStyle(
                           color: Colors.orange.shade700,
                         ),
@@ -99,29 +242,26 @@ class TrainerDetailsPage extends StatelessWidget {
                 const SizedBox(height: 24),
 
                 _buildSectionTitle('Specializations'),
-                _buildSpecializations(),
+                _buildSpecializations(specializations),
                 const SizedBox(height: 24),
 
                 _buildSectionTitle('Certifications'),
-                _buildCertifications(),
+                _buildCertifications(certifications),
                 const SizedBox(height: 24),
 
                 _buildSectionTitle('About'),
-                _buildAboutSection(),
+                _buildAboutSection(bio),
                 const SizedBox(height: 24),
 
                 _buildSectionTitle('Contact Information'),
-                _buildContactInfo(),
+                _buildContactInfo(contactInfo),
                 const SizedBox(height: 24),
 
                 _buildSectionTitle('Available Time Slots'),
-                _buildTimeSlots(),
+                _buildTimeSlots(availability),
                 const SizedBox(height: 24),
 
-                _buildSectionTitle('Client Reviews'),
-                _buildClientReviews(),
-
-                // Add these action buttons after the client reviews section
+                // Action Buttons
                 Padding(
                   padding: const EdgeInsets.all(16),
                   child: Column(
@@ -233,17 +373,11 @@ class TrainerDetailsPage extends StatelessWidget {
     );
   }
 
-  Widget _buildSpecializations() {
+  Widget _buildSpecializations(List specializations) {
     return Wrap(
       spacing: 8,
       runSpacing: 8,
-      children: [
-        _buildSpecializationChip('Weight Loss'),
-        _buildSpecializationChip('Strength Training'),
-        _buildSpecializationChip('HIIT'),
-        _buildSpecializationChip('Nutrition Planning'),
-        _buildSpecializationChip('Functional Training'),
-      ],
+      children: specializations.map((spec) => _buildSpecializationChip(spec.toString())).toList(),
     );
   }
 
@@ -255,20 +389,13 @@ class TrainerDetailsPage extends StatelessWidget {
     );
   }
 
-  Widget _buildCertifications() {
+  Widget _buildCertifications(List certifications) {
     return Column(
-      children: [
-        _buildCertificationItem(
-          'NASM Certified Personal Trainer',
-          'National Academy of Sports Medicine',
-          '2018',
-        ),
-        _buildCertificationItem(
-          'Precision Nutrition Level 1',
-          'Precision Nutrition',
-          '2019',
-        ),
-      ],
+      children: certifications.map((cert) => _buildCertificationItem(
+        cert['title'] ?? '',
+        cert['organization'] ?? '',
+        cert['year'] ?? '',
+      )).toList(),
     );
   }
 
@@ -299,12 +426,9 @@ class TrainerDetailsPage extends StatelessWidget {
     );
   }
 
-  Widget _buildAboutSection() {
+  Widget _buildAboutSection(String bio) {
     return Text(
-      'Dedicated fitness professional with over 5 years of experience in personal training. '
-      'Specializing in weight loss, strength training, and functional fitness. '
-      'Committed to helping clients achieve their fitness goals through personalized '
-      'workout plans and nutritional guidance.',
+      bio,
       style: TextStyle(
         color: Colors.grey.shade700,
         height: 1.5,
@@ -312,12 +436,12 @@ class TrainerDetailsPage extends StatelessWidget {
     );
   }
 
-  Widget _buildContactInfo() {
+  Widget _buildContactInfo(Map<String, dynamic> personalInfo) {
     return Column(
       children: [
-        _buildContactItem(Icons.email, 'Email', 'michael@trainer.com'),
-        _buildContactItem(Icons.phone, 'Phone', '+1 (555) 123-4567'),
-        _buildContactItem(Icons.location_on, 'Location', 'New York, NY'),
+        _buildContactItem(Icons.email, 'Email', personalInfo['email'] ?? ''),
+        _buildContactItem(Icons.phone, 'Phone', personalInfo['phone'] ?? ''),
+        _buildContactItem(Icons.location_on, 'Location', personalInfo['location'] ?? ''),
       ],
     );
   }
@@ -347,13 +471,12 @@ class TrainerDetailsPage extends StatelessWidget {
     );
   }
 
-  Widget _buildTimeSlots() {
+  Widget _buildTimeSlots(Map<String, dynamic> availability) {
     return Column(
-      children: [
-        _buildTimeSlotItem('Monday - Friday', '6:00 AM - 8:00 PM'),
-        _buildTimeSlotItem('Saturday', '8:00 AM - 4:00 PM'),
-        _buildTimeSlotItem('Sunday', 'By Appointment'),
-      ],
+      children: availability.entries.map((entry) => _buildTimeSlotItem(
+        entry.key,
+        '${entry.value['start']} - ${entry.value['end']}',
+      )).toList(),
     );
   }
 
@@ -371,65 +494,6 @@ class TrainerDetailsPage extends StatelessWidget {
               fontWeight: FontWeight.w500,
             ),
           ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildClientReviews() {
-    return Column(
-      children: [
-        _buildReviewItem(
-          'Sarah M.',
-          5,
-          'Amazing trainer! Helped me achieve my weight loss goals.',
-          '2 weeks ago',
-        ),
-        _buildReviewItem(
-          'John D.',
-          5,
-          'Very knowledgeable and professional. Great experience!',
-          '1 month ago',
-        ),
-      ],
-    );
-  }
-
-  Widget _buildReviewItem(String name, int rating, String comment, String time) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                name,
-                style: const TextStyle(fontWeight: FontWeight.w500),
-              ),
-              Text(
-                time,
-                style: TextStyle(
-                  color: Colors.grey.shade600,
-                  fontSize: 12,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 4),
-          Row(
-            children: List.generate(
-              5,
-              (index) => Icon(
-                Icons.star,
-                size: 16,
-                color: index < rating ? Colors.orange.shade700 : Colors.grey.shade300,
-              ),
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(comment),
         ],
       ),
     );

@@ -36,10 +36,6 @@ class DietPlanPage extends StatelessWidget {
           'Weight Loss Diet Plan',
           style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
         ),
-        subtitle: Text(
-          'By Coach Michael',
-          style: TextStyle(color: Colors.grey.shade600),
-        ),
         children: [
           Padding(
             padding: const EdgeInsets.all(16),

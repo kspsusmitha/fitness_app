@@ -137,18 +137,39 @@ class ExerciseVideoPlayer extends StatefulWidget {
 
 class _ExerciseVideoPlayerState extends State<ExerciseVideoPlayer> {
   late YoutubePlayerController _controller;
+  bool _isPlayerReady = false;
 
   @override
   void initState() {
     super.initState();
-    final videoId = YoutubePlayer.convertUrlToId(widget.youtubeUrl);
+    String? videoId = widget.youtubeUrl;
+    
+    // Handle both full URLs and video IDs
+    if (widget.youtubeUrl.contains('youtube.com') || widget.youtubeUrl.contains('youtu.be')) {
+      videoId = YoutubePlayer.convertUrlToId(widget.youtubeUrl) ?? '';
+    }
+    
     _controller = YoutubePlayerController(
-      initialVideoId: videoId!,
+      initialVideoId: videoId,
       flags: const YoutubePlayerFlags(
         autoPlay: false,
         mute: false,
+        showLiveFullscreenButton: false,
+        disableDragSeek: false,
+        loop: false,
+        isLive: false,
+        forceHD: false,
+        enableCaption: true,
       ),
     );
+
+    _controller.addListener(() {
+      if (mounted) {
+        setState(() {
+          _isPlayerReady = true;
+        });
+      }
+    });
   }
 
   @override
@@ -159,13 +180,60 @@ class _ExerciseVideoPlayerState extends State<ExerciseVideoPlayer> {
 
   @override
   Widget build(BuildContext context) {
-    return YoutubePlayer(
-      controller: _controller,
-      showVideoProgressIndicator: true,
-      progressColors: const ProgressBarColors(
-        playedColor: Colors.blue,
-        bufferedColor: Colors.grey,
+    return YoutubePlayerBuilder(
+      player: YoutubePlayer(
+        controller: _controller,
+        showVideoProgressIndicator: true,
+        progressIndicatorColor: Colors.red,
+        progressColors: const ProgressBarColors(
+          playedColor: Colors.red,
+          handleColor: Colors.redAccent,
+        ),
+        onReady: () {
+          setState(() {
+            _isPlayerReady = true;
+          });
+        },
       ),
+      builder: (context, player) {
+        return Column(
+          children: [
+            player,
+            if (_isPlayerReady) ...[
+              const SizedBox(height: 8),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  IconButton(
+                    icon: Icon(
+                      _controller.value.isPlaying ? Icons.pause : Icons.play_arrow,
+                    ),
+                    onPressed: () {
+                      if (_controller.value.isPlaying) {
+                        _controller.pause();
+                      } else {
+                        _controller.play();
+                      }
+                    },
+                  ),
+                  IconButton(
+                    icon: Icon(
+                      _controller.value.volume == 0 ? Icons.volume_off : Icons.volume_up,
+                    ),
+                    onPressed: () {
+                      if (_controller.value.volume == 0) {
+                        _controller.unMute();
+                      } else {
+                        _controller.mute();
+                      }
+                    },
+                  ),
+                ],
+              ),
+            ],
+          ],
+        );
+      },
     );
   }
 }

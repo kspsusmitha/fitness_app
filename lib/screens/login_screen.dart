@@ -38,6 +38,36 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
     super.dispose();
   }
 
+  // Add new validation methods
+  String? _validateEmail(String? value) {
+    if (value == null || value.isEmpty) {
+      return 'Please enter your email';
+    }
+    // Enhanced email validation
+    final emailRegex = RegExp(r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$');
+    if (!emailRegex.hasMatch(value)) {
+      return 'Please enter a valid email address';
+    }
+    return null;
+  }
+
+  String? _validatePassword(String? value) {
+    if (value == null || value.isEmpty) {
+      return 'Please enter your password';
+    }
+    if (value.length < 6) {
+      return 'Password must be at least 6 characters';
+    }
+    // Check for at least one number
+    if (!value.contains(RegExp(r'[0-9]'))) {
+      return 'Password must contain at least one number';
+    }
+    // Check for at least one letter
+    if (!value.contains(RegExp(r'[a-zA-Z]'))) {
+      return 'Password must contain at least one letter';
+    }
+    return null;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -178,7 +208,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                     ),
                   ),
                   const SizedBox(height: 24),
-                  // Email Field
+                  // Email Field with enhanced validation
                   TextFormField(
                     controller: _emailController,
                     keyboardType: TextInputType.emailAddress,
@@ -204,18 +234,16 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                         borderSide: const BorderSide(color: Colors.redAccent),
                       ),
                     ),
-                    validator: (value) {
-                      if (value == null || value.isEmpty) {
-                        return 'Please enter your email';
+                    validator: _validateEmail,
+                    onChanged: (value) {
+                      // Clear any error messages as the user types
+                      if (_formKey.currentState != null) {
+                        _formKey.currentState!.validate();
                       }
-                      if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(value)) {
-                        return 'Please enter a valid email';
-                      }
-                      return null;
                     },
                   ),
                   const SizedBox(height: 16),
-                  // Password Field
+                  // Password Field with enhanced validation
                   TextFormField(
                     controller: _passwordController,
                     obscureText: !_isPasswordVisible,
@@ -252,14 +280,12 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                         borderSide: const BorderSide(color: Colors.redAccent),
                       ),
                     ),
-                    validator: (value) {
-                      if (value == null || value.isEmpty) {
-                        return 'Please enter your password';
+                    validator: _validatePassword,
+                    onChanged: (value) {
+                      // Clear any error messages as the user types
+                      if (_formKey.currentState != null) {
+                        _formKey.currentState!.validate();
                       }
-                      if (value.length < 6) {
-                        return 'Password must be at least 6 characters';
-                      }
-                      return null;
                     },
                   ),
                   const SizedBox(height: 8),
