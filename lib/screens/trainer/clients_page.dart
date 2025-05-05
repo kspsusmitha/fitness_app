@@ -20,6 +20,7 @@ class _ClientsPageState extends State<ClientsPage> {
   bool _isLoading = true;
   List<Map<String, dynamic>> _trainees = [];
   String? _trainerId;
+  String? _selectedClientId;
   StreamSubscription? _traineesSubscription;
 
   @override
@@ -466,7 +467,11 @@ class _ClientsPageState extends State<ClientsPage> {
     );
   }
 
-  void _viewClientDetails(BuildContext context, String clientName) {
+  void _viewClientDetails(BuildContext context, String clientName, String clientId) {
+    setState(() {
+      _selectedClientId = clientId;
+    });
+
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -496,6 +501,15 @@ class _ClientsPageState extends State<ClientsPage> {
                     ),
                   ),
                 ),
+                Text(
+                  clientName,
+                  style: const TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 20),
+                _buildCompletedMealsSection(),
                 Row(
                   children: [
                     CircleAvatar(
@@ -572,6 +586,84 @@ class _ClientsPageState extends State<ClientsPage> {
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildCompletedMealsSection() {
+    return StreamBuilder(
+      stream: _database.child('users/trainees/$_selectedClientId/completedMeals').onValue,
+      builder: (context, snapshot) {
+        if (!snapshot.hasData || !snapshot.data!.snapshot.exists) {
+          return const Center(
+            child: Text('No completed meals yet'),
+          );
+        }
+
+        final data = snapshot.data!.snapshot.value as Map;
+        final completedMeals = <String, List<Map<String, dynamic>>>{};
+
+        data.forEach((weekKey, weekData) {
+          if (weekData is Map) {
+            weekData.forEach((dayKey, dayData) {
+              if (dayData is Map) {
+                dayData.forEach((mealKey, timestamp) {
+                  final week = weekKey.toString().replaceAll('_', ' ');
+                  final day = dayKey.toString().replaceAll('_', ' ');
+                  final meal = mealKey.toString().replaceAll('_', ' ');
+                  
+                  if (!completedMeals.containsKey(week)) {
+                    completedMeals[week] = [];
+                  }
+                  
+                  completedMeals[week]!.add({
+                    'day': day,
+                    'meal': meal,
+                    'timestamp': timestamp,
+                  });
+                });
+              }
+            });
+          }
+        });
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Completed Meals',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 16),
+            ...completedMeals.entries.map((weekEntry) {
+              return Card(
+                margin: const EdgeInsets.only(bottom: 16),
+                child: ExpansionTile(
+                  title: Text(
+                    weekEntry.key,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  children: weekEntry.value.map((meal) {
+                    final date = DateTime.fromMillisecondsSinceEpoch(meal['timestamp']);
+                    return ListTile(
+                      title: Text(meal['meal']),
+                      subtitle: Text('${meal['day']} - ${date.toString().split(' ')[0]}'),
+                      trailing: Icon(
+                        Icons.check_circle,
+                        color: Colors.green.shade700,
+                      ),
+                    );
+                  }).toList(),
+                ),
+              );
+            }).toList(),
+          ],
+        );
+      },
     );
   }
 
@@ -924,7 +1016,7 @@ class _ClientsPageState extends State<ClientsPage> {
               children: [
                 Expanded(
                   child: OutlinedButton.icon(
-                    onPressed: () => _viewClientDetails(context, name),
+                    onPressed: () => _viewClientDetails(context, name, key),
                     icon: const Icon(Icons.visibility),
                     label: const Text('View'),
                     style: OutlinedButton.styleFrom(

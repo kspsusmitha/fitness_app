@@ -1,9 +1,85 @@
 import 'package:flutter/material.dart';
 import 'package:video_player/video_player.dart';
 import 'package:chewie/chewie.dart';
+import 'package:firebase_database/firebase_database.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
-class PreDesignedWorkouts extends StatelessWidget {
+class PreDesignedWorkouts extends StatefulWidget {
   const PreDesignedWorkouts({super.key});
+
+  @override
+  State<PreDesignedWorkouts> createState() => _PreDesignedWorkoutsState();
+}
+
+class _PreDesignedWorkoutsState extends State<PreDesignedWorkouts> {
+  final DatabaseReference _database = FirebaseDatabase.instance.ref();
+  String? _userId;
+  Map<String, bool> _completedExercises = {};
+  bool _isWorkoutCompleted = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _initializeUserData();
+  }
+
+  Future<void> _initializeUserData() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final email = prefs.getString('email') ?? '';
+      
+      final snapshot = await _database
+          .child('users/trainees')
+          .orderByChild('email')
+          .equalTo(email)
+          .get();
+
+      if (snapshot.exists) {
+        final userData = (snapshot.value as Map).entries.first;
+        _userId = userData.key;
+      }
+    } catch (e) {
+      print('Error initializing user data: $e');
+    }
+  }
+
+  Future<void> _markExerciseAsCompleted(String exerciseName) async {
+    if (_userId == null) return;
+
+    setState(() {
+      _completedExercises[exerciseName] = true;
+    });
+
+    try {
+      await _database
+          .child('users/trainees/$_userId/completedExercises')
+          .update({
+        exerciseName: DateTime.now().millisecondsSinceEpoch,
+      });
+    } catch (e) {
+      print('Error marking exercise as completed: $e');
+    }
+  }
+
+  Future<void> _markWorkoutAsCompleted() async {
+    if (_userId == null) return;
+
+    setState(() {
+      _isWorkoutCompleted = true;
+    });
+
+    try {
+      await _database
+          .child('users/trainees/$_userId/completedWorkouts')
+          .push()
+          .set({
+        'timestamp': DateTime.now().millisecondsSinceEpoch,
+        'exercises': _completedExercises,
+      });
+    } catch (e) {
+      print('Error marking workout as completed: $e');
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -187,6 +263,8 @@ class PreDesignedWorkouts extends StatelessWidget {
   }
 
   Widget _buildExerciseCard(Exercise exercise) {
+    final isCompleted = _completedExercises[exercise.name] ?? false;
+
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       elevation: 1,
@@ -201,29 +279,69 @@ class PreDesignedWorkouts extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  exercise.name,
-                  style: const TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(exercise.description),
-                const SizedBox(height: 8),
-                Text(
-                  'Duration: ${exercise.duration}',
-                  style: TextStyle(
-                    color: Colors.blue.shade700,
-                    fontWeight: FontWeight.w500,
-                  ),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            exercise.name,
+                            style: const TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(exercise.description),
+                          const SizedBox(height: 8),
+                          Text(
+                            'Duration: ${exercise.duration}',
+                            style: TextStyle(
+                              color: Colors.blue.shade700,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Radio<bool>(
+                      value: true,
+                      groupValue: isCompleted,
+                      onChanged: (value) {
+                        if (value != null) {
+                          _markExerciseAsCompleted(exercise.name);
+                        }
+                      },
+                    ),
+                  ],
                 ),
               ],
             ),
           ),
-          SizedBox(
-            height: 220,
-            child: ExerciseVideoPlayer(videoUrl: exercise.videoUrl),
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: ElevatedButton(
+              onPressed: _isWorkoutCompleted ? null : _markWorkoutAsCompleted,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: _isWorkoutCompleted 
+                    ? Colors.grey.shade400 
+                    : Colors.green.shade700,
+                foregroundColor: Colors.white,
+                minimumSize: const Size(double.infinity, 50),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              child: Text(
+                _isWorkoutCompleted ? 'WORKOUT COMPLETED' : 'FINISH WORKOUT',
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 16,
+                ),
+              ),
+            ),
           ),
         ],
       ),

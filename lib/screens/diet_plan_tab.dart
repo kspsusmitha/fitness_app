@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:percent_indicator/circular_percent_indicator.dart';
 import 'package:percent_indicator/linear_percent_indicator.dart';
+import 'package:firebase_database/firebase_database.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class DietPlanTab extends StatefulWidget {
   const DietPlanTab({super.key});
@@ -17,6 +19,359 @@ class _DietPlanTabState extends State<DietPlanTab> {
   // Water tracking
   int _waterGlasses = 4;
   final int _waterGoal = 8;
+
+  // Firebase
+  final DatabaseReference _database = FirebaseDatabase.instance.ref();
+  String? _userId;
+  Map<String, Map<String, Map<String, bool>>> _completedMeals = {};
+
+  @override
+  void initState() {
+    super.initState();
+    _initializeUserData();
+  }
+
+  Future<void> _initializeUserData() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final email = prefs.getString('email');
+      
+      if (email == null || email.isEmpty) {
+        print('Error: Email not found in SharedPreferences');
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Row(
+                children: [
+                  Icon(Icons.error, color: Colors.white),
+                  SizedBox(width: 8),
+                  Text('Error: Please log in again'),
+                ],
+              ),
+              backgroundColor: Colors.red.shade700,
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        }
+        return;
+      }
+      
+      print('Retrieving user ID for email: $email');
+      
+      // First, check if the users/trainees node exists
+      final usersSnapshot = await _database.child('users/members').get();
+      if (!usersSnapshot.exists) {
+        print('Error: No trainees found in database');
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Row(
+                children: [
+                  Icon(Icons.error, color: Colors.white),
+                  SizedBox(width: 8),
+                  Text('Error: No user data found'),
+                ],
+              ),
+              backgroundColor: Colors.red.shade700,
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        }
+        return;
+      }
+
+      // Then query for the specific email
+      final snapshot = await _database
+          .child('users/members')
+          .orderByChild('email')
+          .equalTo(email)
+          .get();
+
+      print('Database query result: ${snapshot.value}');
+
+      if (!snapshot.exists) {
+        print('Error: User not found in database for email: $email');
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Row(
+                children: [
+                  Icon(Icons.error, color: Colors.white),
+                  SizedBox(width: 8),
+                  Text('Error: User profile not found. Please contact support.'),
+                ],
+              ),
+              backgroundColor: Colors.red.shade700,
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        }
+        return;
+      }
+
+      final userData = (snapshot.value as Map).entries.first;
+      _userId = userData.key;
+      print('User ID retrieved: $_userId');
+      
+      if (_userId == null) {
+        print('Error: User ID is null');
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Row(
+                children: [
+                  Icon(Icons.error, color: Colors.white),
+                  SizedBox(width: 8),
+                  Text('Error: Invalid user ID'),
+                ],
+              ),
+              backgroundColor: Colors.red.shade700,
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        }
+        return;
+      }
+
+      // Verify the user exists in the database
+      final userSnapshot = await _database.child('users/members/$_userId').get();
+      if (!userSnapshot.exists) {
+        print('Error: User data not found for ID: $_userId');
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Row(
+                children: [
+                  Icon(Icons.error, color: Colors.white),
+                  SizedBox(width: 8),
+                  Text('Error: User data not found'),
+                ],
+              ),
+              backgroundColor: Colors.red.shade700,
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        }
+        return;
+      }
+
+      print('User data found: ${userSnapshot.value}');
+      await _loadCompletedMeals();
+    } catch (e) {
+      print('Error initializing user data: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                Icon(Icons.error, color: Colors.white),
+                SizedBox(width: 8),
+                Text('Error: Failed to load user data. Please try again.'),
+              ],
+            ),
+            backgroundColor: Colors.red.shade700,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _loadCompletedMeals() async {
+    if (_userId == null) return;
+
+    try {
+      final snapshot = await _database
+          .child('users/members/$_userId/completedMeals')
+          .get();
+
+      if (snapshot.exists) {
+        final data = snapshot.value as Map;
+        setState(() {
+          _completedMeals = Map<String, Map<String, Map<String, bool>>>.from(
+            data.map((weekKey, weekData) => MapEntry(
+              weekKey,
+              Map<String, Map<String, bool>>.from(
+                (weekData as Map).map((dayKey, dayData) => MapEntry(
+                  dayKey,
+                  Map<String, bool>.from(
+                    (dayData as Map).map((mealKey, value) => MapEntry(
+                      mealKey,
+                      value is Map ? value['completed'] == true : value == true,
+                    )),
+                  ),
+                )),
+              ),
+            )),
+          );
+        });
+      }
+    } catch (e) {
+      print('Error loading completed meals: $e');
+    }
+  }
+
+  Future<void> _markMealAsCompleted(String mealName) async {
+    if (_userId == null) return;
+
+    final weekKey = 'Week_$_selectedWeek';
+    final dayKey = 'Day_$_selectedDay';
+    final mealKey = mealName.replaceAll(' ', '_');
+    final timestamp = DateTime.now().millisecondsSinceEpoch;
+
+    try {
+      // Update completed meals
+      await _database
+          .child('users/members/$_userId/completedMeals/$weekKey/$dayKey')
+          .update({
+        mealKey: {
+          'completed': true,
+          'timestamp': timestamp,
+          'mealName': mealName,
+          'calories': _getMealPlan(_selectedWeek, _selectedDay)[mealName]!['calories'],
+          'time': _getMealPlan(_selectedWeek, _selectedDay)[mealName]!['time'],
+        },
+      });
+
+      // Update progress
+      final totalMeals = _getMealPlan(_selectedWeek, _selectedDay).length;
+      final completedCount = _getCompletedMealsCount();
+      final newProgress = (completedCount + 1) / totalMeals;
+
+      await _database
+          .child('users/members/$_userId/dietProgress/$weekKey/$dayKey')
+          .update({
+        'progress': newProgress,
+        'completedMeals': completedCount + 1,
+        'totalMeals': totalMeals,
+        'lastUpdated': timestamp,
+        'lastCompletedMeal': {
+          'name': mealName,
+          'time': _getMealPlan(_selectedWeek, _selectedDay)[mealName]!['time'],
+          'timestamp': timestamp,
+        },
+      });
+
+      // Update daily progress
+      await _database
+          .child('users/members/$_userId/dailyProgress/$weekKey/$dayKey')
+          .update({
+        'date': timestamp,
+        'completedMeals': completedCount + 1,
+        'totalMeals': totalMeals,
+        'progress': newProgress,
+        'lastCompletedMeal': {
+          'name': mealName,
+          'time': _getMealPlan(_selectedWeek, _selectedDay)[mealName]!['time'],
+          'timestamp': timestamp,
+        },
+      });
+
+      // Update meal history
+      await _database
+          .child('users/members/$_userId/mealHistory')
+          .push()
+          .set({
+        'mealName': mealName,
+        'week': _selectedWeek,
+        'day': _selectedDay,
+        'timestamp': timestamp,
+        'calories': _getMealPlan(_selectedWeek, _selectedDay)[mealName]!['calories'],
+        'time': _getMealPlan(_selectedWeek, _selectedDay)[mealName]!['time'],
+        'items': _getMealPlan(_selectedWeek, _selectedDay)[mealName]!['items'],
+      });
+
+      // Show success message with animation
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                Icon(Icons.check_circle, color: Colors.white),
+                SizedBox(width: 8),
+                Text('$mealName marked as completed!'),
+              ],
+            ),
+            backgroundColor: Colors.green.shade700,
+            behavior: SnackBarBehavior.floating,
+            duration: Duration(seconds: 2),
+          ),
+        );
+
+        // Show completion animation
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (context) => AlertDialog(
+            backgroundColor: Colors.transparent,
+            elevation: 0,
+            content: Container(
+              width: 100,
+              height: 100,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                shape: BoxShape.circle,
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.green.withOpacity(0.3),
+                    blurRadius: 10,
+                    spreadRadius: 2,
+                  ),
+                ],
+              ),
+              child: Center(
+                child: Icon(
+                  Icons.check_circle,
+                  color: Colors.green.shade700,
+                  size: 60,
+                ),
+              ),
+            ),
+          ),
+        );
+
+        // Dismiss the dialog after animation
+        Future.delayed(Duration(milliseconds: 1500), () {
+          if (mounted) {
+            Navigator.of(context).pop();
+          }
+        });
+      }
+
+      // Reload completed meals
+      await _loadCompletedMeals();
+    } catch (e) {
+      print('Error marking meal as completed: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                Icon(Icons.error, color: Colors.white),
+                SizedBox(width: 8),
+                Text('Error marking meal as completed: $e'),
+              ],
+            ),
+            backgroundColor: Colors.red.shade700,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
+  }
+
+  bool _isMealCompleted(String mealName) {
+    final weekKey = 'Week_$_selectedWeek';
+    final dayKey = 'Day_$_selectedDay';
+    final mealKey = mealName.replaceAll(' ', '_');
+    return _completedMeals[weekKey]?[dayKey]?[mealKey] ?? false;
+  }
+
+  int _getCompletedMealsCount() {
+    final weekKey = 'Week_$_selectedWeek';
+    final dayKey = 'Day_$_selectedDay';
+    return _completedMeals[weekKey]?[dayKey]?.values.where((v) => v).length ?? 0;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -403,6 +758,9 @@ class _DietPlanTabState extends State<DietPlanTab> {
 
   Widget _buildMealPlan() {
     final mealPlan = _getMealPlan(_selectedWeek, _selectedDay);
+    final totalMeals = mealPlan.length;
+    final completedMeals = _getCompletedMealsCount();
+    final progress = totalMeals > 0 ? completedMeals / totalMeals : 0.0;
     
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -418,20 +776,75 @@ class _DietPlanTabState extends State<DietPlanTab> {
                 topRight: Radius.circular(16),
               ),
             ),
-            child: Row(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Icon(
-                  Icons.restaurant_menu,
-                  color: Colors.blue.shade800,
+                Row(
+                  children: [
+                    Icon(
+                      Icons.restaurant_menu,
+                      color: Colors.blue.shade800,
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Meal Plan',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.blue.shade800,
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(width: 8),
-                Text(
-                  'Meal Plan',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.blue.shade800,
-                  ),
+                const SizedBox(height: 8),
+                LinearPercentIndicator(
+                  percent: progress,
+                  lineHeight: 8.0,
+                  animation: true,
+                  animationDuration: 1000,
+                  backgroundColor: Colors.blue.shade100,
+                  progressColor: Colors.blue.shade700,
+                  barRadius: const Radius.circular(4),
+                ),
+                const SizedBox(height: 4),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      '$completedMeals of $totalMeals meals completed',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.blue.shade800,
+                      ),
+                    ),
+                    if (progress == 1.0)
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: Colors.green.shade100,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.check_circle,
+                              color: Colors.green.shade700,
+                              size: 14,
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              'All meals completed!',
+                              style: TextStyle(
+                                color: Colors.green.shade700,
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                  ],
                 ),
               ],
             ),
@@ -439,6 +852,7 @@ class _DietPlanTabState extends State<DietPlanTab> {
           ...mealPlan.entries.map((entry) {
             final mealName = entry.key;
             final mealData = entry.value;
+            final isCompleted = _isMealCompleted(mealName);
             
             return Container(
               margin: const EdgeInsets.only(bottom: 8),
@@ -462,25 +876,57 @@ class _DietPlanTabState extends State<DietPlanTab> {
               ),
               child: ExpansionTile(
                 leading: CircleAvatar(
-                  backgroundColor: Colors.blue.shade100,
+                  backgroundColor: isCompleted ? Colors.green.shade100 : Colors.blue.shade100,
                   child: Icon(
                     mealData['icon'] as IconData,
-                    color: Colors.blue.shade800,
+                    color: isCompleted ? Colors.green.shade700 : Colors.blue.shade800,
                   ),
                 ),
                 title: Text(
                   mealName,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontWeight: FontWeight.bold,
+                    color: isCompleted ? Colors.green.shade700 : null,
                   ),
                 ),
                 subtitle: Text(
                   '${mealData['time']} • ${mealData['calories']}',
                   style: TextStyle(
-                    color: Colors.grey.shade600,
+                    color: isCompleted ? Colors.green.shade600 : Colors.grey.shade600,
                     fontSize: 12,
                   ),
                 ),
+                trailing: isCompleted
+                    ? Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: Colors.green.shade100,
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.check_circle, color: Colors.green.shade700, size: 16),
+                            const SizedBox(width: 4),
+                            Text(
+                              'Completed',
+                              style: TextStyle(
+                                color: Colors.green.shade700,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
+                        ),
+                      )
+                    : ElevatedButton(
+                        onPressed: () => _markMealAsCompleted(mealName),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.blue.shade700,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                        ),
+                        child: const Text('Finish'),
+                      ),
                 children: [
                   Padding(
                     padding: const EdgeInsets.all(16),
@@ -495,14 +941,17 @@ class _DietPlanTabState extends State<DietPlanTab> {
                               children: [
                                 Icon(
                                   Icons.check_circle,
-                                  color: Colors.green.shade500,
+                                  color: isCompleted ? Colors.green.shade500 : Colors.grey.shade400,
                                   size: 20,
                                 ),
                                 const SizedBox(width: 8),
                                 Expanded(
                                   child: Text(
                                     item,
-                                    style: const TextStyle(fontSize: 14),
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      color: isCompleted ? Colors.green.shade700 : null,
+                                    ),
                                   ),
                                 ),
                               ],
@@ -512,7 +961,6 @@ class _DietPlanTabState extends State<DietPlanTab> {
                         const SizedBox(height: 8),
                         OutlinedButton.icon(
                           onPressed: () {
-                            // Show nutritional info
                             _showNutritionalInfo(context, mealName);
                           },
                           icon: const Icon(Icons.info_outline),

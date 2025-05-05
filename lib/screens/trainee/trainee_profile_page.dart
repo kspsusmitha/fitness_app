@@ -77,15 +77,79 @@ class _TraineeProfilePageState extends State<TraineeProfilePage> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              _buildEditField(_nameController, 'Name', Icons.person),
+              _buildEditField(
+                _nameController,
+                'Name',
+                Icons.person,
+                validator: (value) {
+                  if (value?.isEmpty ?? true) {
+                    return 'Name is required';
+                  }
+                  return null;
+                },
+              ),
               const SizedBox(height: 12),
-              _buildEditField(_phoneController, 'Phone', Icons.phone),
+              _buildEditField(
+                _phoneController,
+                'Phone',
+                Icons.phone,
+                validator: (value) {
+                  if (value?.isNotEmpty ?? false) {
+                    if (!RegExp(r'^[0-9]{10}$').hasMatch(value!)) {
+                      return 'Must be 10 digits';
+                    }
+                  }
+                  return null;
+                },
+              ),
               const SizedBox(height: 12),
-              _buildEditField(_ageController, 'Age', Icons.cake, isNumber: true),
+              _buildEditField(
+                _ageController,
+                'Age',
+                Icons.cake,
+                isNumber: true,
+                validator: (value) {
+                  if (value?.isNotEmpty ?? false) {
+                    final age = int.tryParse(value!);
+                    if (age == null || age < 13 || age > 100) {
+                      return 'Must be between 13-100';
+                    }
+                  }
+                  return null;
+                },
+              ),
               const SizedBox(height: 12),
-              _buildEditField(_heightController, 'Height (cm)', Icons.height, isNumber: true),
+              _buildEditField(
+                _heightController,
+                'Height (cm)',
+                Icons.height,
+                isNumber: true,
+                validator: (value) {
+                  if (value?.isNotEmpty ?? false) {
+                    final height = int.tryParse(value!);
+                    if (height == null || height < 100 || height > 250) {
+                      return 'Must be between 100-250cm';
+                    }
+                  }
+                  return null;
+                },
+              ),
               const SizedBox(height: 12),
-              _buildEditField(_weightController, 'Weight (kg)', Icons.monitor_weight, isNumber: true),
+              _buildEditField(
+                _weightController,
+                'Weight (kg)',
+                Icons.monitor_weight,
+                isNumber: true,
+                validator: (value) {
+                  if (value?.isNotEmpty ?? false) {
+                    final weight = int.tryParse(value!);
+                    if (weight == null || weight < 30 || weight > 300) {
+                      return 'Must be between 30-300kg';
+                    }
+                  }
+                  return null;
+                },
+              ),
             ],
           ),
         ),
@@ -104,7 +168,13 @@ class _TraineeProfilePageState extends State<TraineeProfilePage> {
     );
   }
 
-  Widget _buildEditField(TextEditingController controller, String label, IconData icon, {bool isNumber = false}) {
+  Widget _buildEditField(
+    TextEditingController controller,
+    String label,
+    IconData icon, {
+    bool isNumber = false,
+    String? Function(String?)? validator,
+  }) {
     return TextField(
       controller: controller,
       keyboardType: isNumber ? TextInputType.number : TextInputType.text,
@@ -112,24 +182,90 @@ class _TraineeProfilePageState extends State<TraineeProfilePage> {
         labelText: label,
         prefixIcon: Icon(icon),
         border: const OutlineInputBorder(),
+        errorText: validator?.call(controller.text),
       ),
     );
   }
 
   Future<void> _saveProfileEdits() async {
     if (_traineeKey == null) return;
+
+    // Validate inputs
+    final name = _nameController.text.trim();
+    final phone = _phoneController.text.trim();
+    final age = _ageController.text.trim();
+    final height = _heightController.text.trim();
+    final weight = _weightController.text.trim();
+
+    // Validation checks
+    if (name.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Name cannot be empty'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    if (phone.isNotEmpty && !RegExp(r'^[0-9]{10}$').hasMatch(phone)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Phone number must be 10 digits'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    final ageValue = int.tryParse(age);
+    if (age.isNotEmpty && (ageValue == null || ageValue < 13 || ageValue > 100)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Age must be between 13 and 100'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    final heightValue = int.tryParse(height);
+    if (height.isNotEmpty && (heightValue == null || heightValue < 100 || heightValue > 250)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Height must be between 100cm and 250cm'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    final weightValue = int.tryParse(weight);
+    if (weight.isNotEmpty && (weightValue == null || weightValue < 30 || weightValue > 300)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Weight must be between 30kg and 300kg'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
     final db = FirebaseDatabase.instance.ref();
     await db.child('users/trainees/$_traineeKey').update({
-      'name': _nameController.text.trim(),
-      'phone': _phoneController.text.trim(),
-      'age': int.tryParse(_ageController.text.trim()) ?? '',
-      'height': int.tryParse(_heightController.text.trim()) ?? '',
-      'weight': int.tryParse(_weightController.text.trim()) ?? '',
+      'name': name,
+      'phone': phone,
+      'age': ageValue,
+      'height': heightValue,
+      'weight': weightValue,
     });
     Navigator.pop(context);
     _fetchTraineeData();
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Profile updated!'), backgroundColor: Colors.green),
+      const SnackBar(
+        content: Text('Profile updated successfully!'),
+        backgroundColor: Colors.green,
+      ),
     );
   }
 

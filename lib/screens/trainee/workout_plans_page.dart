@@ -18,6 +18,7 @@ class _WorkoutPlansPageState extends State<WorkoutPlansPage> {
   bool _isLoading = true;
   String? _traineeId;
   StreamSubscription? _workoutPlansSubscription;
+  Map<String, Map<String, bool>> _completedExercises = {};
 
   @override
   void initState() {
@@ -30,7 +31,6 @@ class _WorkoutPlansPageState extends State<WorkoutPlansPage> {
       final prefs = await SharedPreferences.getInstance();
       final email = prefs.getString('email') ?? '';
       
-      // Get trainee data
       final traineeSnapshot = await _database
           .child('users/trainees')
           .orderByChild('email')
@@ -41,12 +41,73 @@ class _WorkoutPlansPageState extends State<WorkoutPlansPage> {
         final traineeData = (traineeSnapshot.value as Map).entries.first;
         _traineeId = traineeData.key;
         _setupWorkoutPlansListener();
+        _loadCompletedExercises();
       } else {
         setState(() => _isLoading = false);
       }
     } catch (e) {
       print('Error initializing trainee data: $e');
       setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _loadCompletedExercises() async {
+    if (_traineeId == null) return;
+
+    try {
+      final snapshot = await _database
+          .child('users/trainees/$_traineeId/completedExercises')
+          .get();
+
+      if (snapshot.exists) {
+        final data = snapshot.value as Map;
+        setState(() {
+          _completedExercises = Map<String, Map<String, bool>>.from(
+            data.map((workoutKey, workoutData) => MapEntry(
+              workoutKey,
+              Map<String, bool>.from(
+                (workoutData as Map).map((exerciseKey, value) => MapEntry(
+                  exerciseKey,
+                  value == true,
+                )),
+              ),
+            )),
+          );
+        });
+      }
+    } catch (e) {
+      print('Error loading completed exercises: $e');
+    }
+  }
+
+  Future<void> _markExerciseAsCompleted(String workoutKey, String exercise) async {
+    if (_traineeId == null) return;
+
+    try {
+      // Update completed exercises
+      await _database
+          .child('users/trainees/$_traineeId/completedExercises/$workoutKey')
+          .update({
+        exercise: true,
+      });
+
+      // Update workout progress
+      final workout = _workoutPlans.firstWhere((plan) => plan['key'] == workoutKey);
+      final totalExercises = (workout['exercises'] as List).length;
+      final completedCount = _completedExercises[workoutKey]?.values.where((v) => v).length ?? 0;
+      final newProgress = (completedCount + 1) / totalExercises;
+
+      await _database
+          .child('users/trainees/$_traineeId/workoutPlans/$workoutKey')
+          .update({
+        'progress': newProgress,
+        'completedSessions': completedCount + 1,
+      });
+
+      // Reload data
+      await _loadCompletedExercises();
+    } catch (e) {
+      print('Error marking exercise as completed: $e');
     }
   }
 
@@ -172,6 +233,7 @@ class _WorkoutPlansPageState extends State<WorkoutPlansPage> {
                   plan['progress'],
                   plan['exercises'] ?? [],
                   _getScheduleFromPlan(plan),
+                  plan['key'],
                 )),
         ],
       ),
@@ -184,6 +246,52 @@ class _WorkoutPlansPageState extends State<WorkoutPlansPage> {
     return ['Monday', 'Wednesday', 'Friday'];
   }
 
+  Widget _buildExercise(String name, String sets, String workoutKey) {
+    final isCompleted = _completedExercises[workoutKey]?[name] ?? false;
+
+    return ListTile(
+      title: Text(name),
+      subtitle: Text(sets),
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (!isCompleted)
+            ElevatedButton(
+              onPressed: () => _markExerciseAsCompleted(workoutKey, name),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.green.shade700,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              ),
+              child: const Text('Finish'),
+            )
+          else
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: Colors.green.shade100,
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.check_circle, color: Colors.green.shade700, size: 16),
+                  const SizedBox(width: 4),
+                  Text(
+                    'Completed',
+                    style: TextStyle(
+                      color: Colors.green.shade700,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildExpandableWorkoutPlan(
     String title,
     String description,
@@ -191,6 +299,7 @@ class _WorkoutPlansPageState extends State<WorkoutPlansPage> {
     double progress,
     List<dynamic> exercises,
     List<String> schedule,
+    String workoutKey,
   ) {
     return Card(
       margin: const EdgeInsets.only(bottom: 16),
@@ -226,6 +335,13 @@ class _WorkoutPlansPageState extends State<WorkoutPlansPage> {
                   backgroundColor: Colors.grey.shade200,
                   valueColor: AlwaysStoppedAnimation<Color>(Colors.orange.shade700),
                 ),
+                Text(
+                  '${(progress * 100).round()}% Complete',
+                  style: TextStyle(
+                    color: Colors.orange.shade700,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
                 const SizedBox(height: 16),
 
                 // Schedule Section
@@ -252,7 +368,7 @@ class _WorkoutPlansPageState extends State<WorkoutPlansPage> {
                 ...exercises.map((exercise) => _buildExercise(
                       exercise.toString(),
                       '3 sets x 12 reps',
-                      'https://example.com/${exercise.toLowerCase().replaceAll(' ', '_')}.mp4',
+                      workoutKey,
                     )),
                 const SizedBox(height: 16),
 
@@ -273,20 +389,6 @@ class _WorkoutPlansPageState extends State<WorkoutPlansPage> {
             ),
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _buildExercise(String name, String sets, String videoUrl) {
-    return ListTile(
-      title: Text(name),
-      subtitle: Text(sets),
-      trailing: IconButton(
-        icon: const Icon(Icons.play_circle_outline),
-        onPressed: () {
-          // Show video in a dialog
-          // _showVideoDialog(context, name, videoUrl);
-        },
       ),
     );
   }
